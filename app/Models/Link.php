@@ -4,14 +4,18 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
 
 class Link extends Model
 {
     public const STATUS_PENDING = 'PENDING';
+
     public const STATUS_ACTIVE = 'ACTIVE';
+
     public const STATUS_SUSPENDED = 'SUSPENDED';
+
     public const STATUS_TERMINATED = 'TERMINATED';
 
     protected $fillable = [
@@ -22,6 +26,7 @@ class Link extends Model
         'bandwidth_mbps',
         'nttn_provider',
         'circuit_id',
+        'nttn_link_id',
         'vlan',
         'port',
         'status',
@@ -69,5 +74,22 @@ class Link extends Model
     public function serviceRequests(): HasMany
     {
         return $this->hasMany(ServiceRequest::class);
+    }
+
+    public function canBeDiscontinued(): bool
+    {
+        $activationDate = $this->activation_date ?? $this->created_at;
+        if (! $activationDate) {
+            return false;
+        }
+
+        return now()->greaterThanOrEqualTo($activationDate->copy()->addMonths(3));
+    }
+
+    public function discontinuationEligibleDate(): ?Carbon
+    {
+        $activationDate = $this->activation_date ?? $this->created_at;
+
+        return $activationDate ? $activationDate->copy()->addMonths(3) : null;
     }
 }

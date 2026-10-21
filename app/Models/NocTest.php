@@ -8,7 +8,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class NocTest extends Model
 {
     public const RESULT_PENDING = 'PENDING';
+
     public const RESULT_PASSED = 'PASSED';
+
     public const RESULT_FAILED = 'FAILED';
 
     protected $fillable = [

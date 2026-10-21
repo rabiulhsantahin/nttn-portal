@@ -10,6 +10,7 @@ class Billing extends Model
     protected $table = 'billing';
 
     public const STATUS_PENDING = 'PENDING';
+
     public const STATUS_COMPLETED = 'COMPLETED';
 
     protected $fillable = [

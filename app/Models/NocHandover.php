@@ -9,8 +9,11 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class NocHandover extends Model
 {
     public const STATUS_RECEIVED = 'RECEIVED';
+
     public const STATUS_TESTING = 'TESTING';
+
     public const STATUS_VERIFIED = 'VERIFIED';
+
     public const STATUS_REJECTED = 'REJECTED';
 
     protected $fillable = [

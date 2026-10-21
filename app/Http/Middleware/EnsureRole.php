@@ -19,13 +19,13 @@ class EnsureRole
 
         $userRole = $request->user()->role?->name;
 
-        // Super Admin has bypass access
-        if ($userRole === 'super_admin') {
+        // Super Admin has bypass access (including during active impersonation)
+        if ($userRole === 'super_admin' || $request->session()->has('impersonator_id')) {
             return $next($request);
         }
 
         if (! in_array($userRole, $roles, true)) {
-            abort(403, 'Unauthorized. Your role (' . ($userRole ?? 'none') . ') does not have access to this action.');
+            abort(403, 'Unauthorized. Your role ('.($userRole ?? 'none').') does not have access to this action.');
         }
 
         return $next($request);

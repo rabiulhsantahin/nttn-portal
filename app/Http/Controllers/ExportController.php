@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\ActivityLog;
 use App\Models\Billing;
 use App\Models\Link;
+use App\Models\ServiceRequest;
 use App\Models\SurveyRequest;
 use App\Models\Ticket;
+use App\Models\WorkOrder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -30,10 +32,10 @@ class ExportController extends Controller
 
         $surveys = $query->latest()->get();
 
-        $filename = 'surveys_export_' . now()->format('Ymd_His') . '.csv';
+        $filename = 'surveys_export_'.now()->format('Ymd_His').'.csv';
 
         $headers = [
-            'Content-Type'        => 'text/csv',
+            'Content-Type' => 'text/csv',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
@@ -87,10 +89,10 @@ class ExportController extends Controller
 
         $links = $query->latest()->get();
 
-        $filename = 'circuits_export_' . now()->format('Ymd_His') . '.csv';
+        $filename = 'circuits_export_'.now()->format('Ymd_His').'.csv';
 
         $headers = [
-            'Content-Type'        => 'text/csv',
+            'Content-Type' => 'text/csv',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
@@ -140,10 +142,10 @@ class ExportController extends Controller
 
         $tickets = $query->latest()->get();
 
-        $filename = 'tickets_export_' . now()->format('Ymd_His') . '.csv';
+        $filename = 'tickets_export_'.now()->format('Ymd_His').'.csv';
 
         $headers = [
-            'Content-Type'        => 'text/csv',
+            'Content-Type' => 'text/csv',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
@@ -181,7 +183,35 @@ class ExportController extends Controller
 
     public function activityLogsCsv(Request $request)
     {
+        $user = Auth::user();
         $query = ActivityLog::with('user');
+
+        if ($user->isReseller()) {
+            $resellerId = $user->reseller?->id ?? 0;
+            $query->where(function ($q) use ($resellerId, $user) {
+                $q->where('user_id', $user->id)
+                    ->orWhere(function ($sub) use ($resellerId) {
+                        $sub->where('entity_type', 'survey_request')
+                            ->whereIn('entity_id', SurveyRequest::where('reseller_id', $resellerId)->select('id'));
+                    })
+                    ->orWhere(function ($sub) use ($resellerId) {
+                        $sub->where('entity_type', 'work_order')
+                            ->whereIn('entity_id', WorkOrder::whereHas('surveyRequest', fn ($sq) => $sq->where('reseller_id', $resellerId))->select('id'));
+                    })
+                    ->orWhere(function ($sub) use ($resellerId) {
+                        $sub->where('entity_type', 'link')
+                            ->whereIn('entity_id', Link::where('reseller_id', $resellerId)->select('id'));
+                    })
+                    ->orWhere(function ($sub) use ($resellerId) {
+                        $sub->where('entity_type', 'ticket')
+                            ->whereIn('entity_id', Ticket::whereHas('link', fn ($lq) => $lq->where('reseller_id', $resellerId))->select('id'));
+                    })
+                    ->orWhere(function ($sub) use ($resellerId) {
+                        $sub->where('entity_type', 'service_request')
+                            ->whereIn('entity_id', ServiceRequest::whereHas('link', fn ($lq) => $lq->where('reseller_id', $resellerId))->select('id'));
+                    });
+            });
+        }
 
         if ($request->filled('entity_type')) {
             $query->where('entity_type', $request->entity_type);
@@ -189,10 +219,10 @@ class ExportController extends Controller
 
         $logs = $query->latest('created_at')->get();
 
-        $filename = 'audit_log_' . now()->format('Ymd_His') . '.csv';
+        $filename = 'audit_log_'.now()->format('Ymd_His').'.csv';
 
         $headers = [
-            'Content-Type'        => 'text/csv',
+            'Content-Type' => 'text/csv',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 

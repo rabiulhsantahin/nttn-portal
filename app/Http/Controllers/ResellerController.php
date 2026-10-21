@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Customer;
 use App\Models\Link;
 use App\Models\Reseller;
 use App\Models\SurveyRequest;
@@ -47,13 +46,13 @@ class ResellerController extends Controller
 
         // Stats
         $stats = [
-            'total_customers'   => $reseller->customers()->count(),
-            'active_links'      => $reseller->links()->where('status', Link::STATUS_ACTIVE)->count(),
-            'total_bandwidth'   => $reseller->links()->where('status', Link::STATUS_ACTIVE)->sum('bandwidth_mbps'),
-            'total_surveys'     => $reseller->surveyRequests()->count(),
-            'pending_surveys'   => $reseller->surveyRequests()->whereNotIn('status', [SurveyRequest::STATUS_ACTIVE, 'REJECTED', 'REJECTED_FINAL'])->count(),
-            'open_tickets'      => Ticket::whereHas('link', fn($q) => $q->where('reseller_id', $reseller->id))
-                                         ->whereIn('status', ['OPEN', 'WORKING'])->count(),
+            'total_customers' => $reseller->customers()->count(),
+            'active_links' => $reseller->links()->where('status', Link::STATUS_ACTIVE)->count(),
+            'total_bandwidth' => $reseller->links()->where('status', Link::STATUS_ACTIVE)->sum('bandwidth_mbps'),
+            'total_surveys' => $reseller->surveyRequests()->count(),
+            'pending_surveys' => $reseller->surveyRequests()->whereNotIn('status', [SurveyRequest::STATUS_ACTIVE, 'REJECTED', 'REJECTED_FINAL'])->count(),
+            'open_tickets' => Ticket::whereHas('link', fn ($q) => $q->where('reseller_id', $reseller->id))
+                ->whereIn('status', ['OPEN', 'WORKING'])->count(),
         ];
 
         // Recent surveys

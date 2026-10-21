@@ -45,7 +45,10 @@
                                 </a>
                             </td>
                             <td class="px-6 py-4 font-mono text-slate-300">
-                                {{ $link->circuit_id ?? 'Provisioning' }}
+                                <div>{{ $link->circuit_id ?? 'Provisioning' }}</div>
+                                @if(!auth()->user()->isReseller() && $link->nttn_link_id)
+                                    <div class="text-[11px] text-cyan-400 font-normal">NTTN: {{ $link->nttn_link_id }}</div>
+                                @endif
                             </td>
                             <td class="px-6 py-4">
                                 <div class="text-white font-bold">{{ $link->customer->name }}</div>

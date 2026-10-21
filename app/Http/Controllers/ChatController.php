@@ -12,6 +12,11 @@ class ChatController extends Controller
 {
     public function show(Link $link)
     {
+        $user = Auth::user();
+        if ($user->isReseller() && $link->reseller_id !== $user->reseller?->id) {
+            abort(403, 'Unauthorized access to this circuit chat room.');
+        }
+
         $room = ChatRoom::firstOrCreate(['link_id' => $link->id]);
 
         $messages = ChatMessage::where('chat_room_id', $room->id)
@@ -24,6 +29,11 @@ class ChatController extends Controller
 
     public function send(Request $request, Link $link)
     {
+        $user = Auth::user();
+        if ($user->isReseller() && $link->reseller_id !== $user->reseller?->id) {
+            abort(403, 'Unauthorized access to this circuit chat room.');
+        }
+
         $validated = $request->validate([
             'message' => ['required', 'string', 'max:2000'],
             'attachment' => ['nullable', 'file', 'max:5120'], // Max 5MB
@@ -55,6 +65,11 @@ class ChatController extends Controller
 
     public function messages(Link $link)
     {
+        $user = Auth::user();
+        if ($user->isReseller() && $link->reseller_id !== $user->reseller?->id) {
+            abort(403, 'Unauthorized access to this circuit chat room.');
+        }
+
         $room = ChatRoom::firstOrCreate(['link_id' => $link->id]);
 
         $messages = ChatMessage::where('chat_room_id', $room->id)

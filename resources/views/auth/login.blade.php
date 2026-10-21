@@ -82,59 +82,57 @@
             </div>
         </div>
 
-        <!-- Right: 1-Click Role-Switch Demo Hub -->
+        <!-- Right: Enterprise Role Security & Direct Access Directory -->
         <div class="md:col-span-3 flex flex-col justify-between">
             <div>
                 <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-sm font-bold uppercase tracking-wider text-slate-300">Quick Demo Role Access</h3>
-                    <span class="text-xs text-cyan-400 font-mono bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20">Instant 1-Click Login</span>
+                    <h3 class="text-sm font-bold uppercase tracking-wider text-slate-300">Enterprise Access Control</h3>
+                    <span class="text-xs text-emerald-400 font-mono bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">Password Required</span>
                 </div>
                 <p class="text-xs text-slate-400 mb-5 leading-relaxed">
-                    Select any role to instantly log in and test that exact actor's viewpoint and workflows:
+                    All accounts and role authorizations are provisioned by the <strong>Super Administrator</strong>. Enter your assigned email address and password to access your role workspace.
                 </p>
 
                 <div class="grid sm:grid-cols-2 gap-3">
                     @foreach($demoUsers as $demo)
                         @php
                             $roleColors = [
-                                'super_admin' => 'from-purple-900/40 to-slate-900 border-purple-500/30 hover:border-purple-400 text-purple-300',
-                                'md' => 'from-amber-900/40 to-slate-900 border-amber-500/30 hover:border-amber-400 text-amber-300',
-                                'reseller' => 'from-blue-900/40 to-slate-900 border-blue-500/30 hover:border-blue-400 text-blue-300',
-                                'transmission' => 'from-cyan-900/40 to-slate-900 border-cyan-500/30 hover:border-cyan-400 text-cyan-300',
-                                'noc' => 'from-emerald-900/40 to-slate-900 border-emerald-500/30 hover:border-emerald-400 text-emerald-300',
-                                'billing' => 'from-rose-900/40 to-slate-900 border-rose-500/30 hover:border-rose-400 text-rose-300',
+                                'super_admin' => 'from-purple-900/30 to-slate-900 border-purple-500/30 text-purple-300',
+                                'md' => 'from-amber-900/30 to-slate-900 border-amber-500/30 text-amber-300',
+                                'reseller' => 'from-blue-900/30 to-slate-900 border-blue-500/30 text-blue-300',
+                                'transmission' => 'from-cyan-900/30 to-slate-900 border-cyan-500/30 text-cyan-300',
+                                'noc' => 'from-emerald-900/30 to-slate-900 border-emerald-500/30 text-emerald-300',
+                                'billing' => 'from-rose-900/30 to-slate-900 border-rose-500/30 text-rose-300',
                             ];
                             $roleColor = $roleColors[$demo->role->name] ?? 'from-slate-800 to-slate-900 border-slate-700 text-slate-300';
-                            
-                            $roleRoles = [
-                                'super_admin' => 'Full administrative command & oversight',
-                                'md' => 'Commercial approvals & final commissioning',
-                                'reseller' => 'Order requests & customer links',
-                                'transmission' => 'Feasibility survey & optical field work',
-                                'noc' => '8-Point SLA verification & active monitoring',
-                                'billing' => 'Invoicing, rates & carrier charges',
+
+                            $roleDescriptions = [
+                                'super_admin' => 'Full administrative command, user management & role oversight',
+                                'md' => 'Commercial review, feasibility sanction & final commission',
+                                'reseller' => 'Subscriber link management, survey requests & tickets',
+                                'transmission' => 'Field feasibility, fiber route surveys & optical work',
+                                'noc' => '8-Point SLA testing, live fiber monitoring & diagnostics',
+                                'billing' => 'Revenue provisioning, monthly tariffs & carrier invoices',
                             ];
                         @endphp
-                        <form method="POST" action="{{ route('login.quick') }}">
-                            @csrf
-                            <input type="hidden" name="email" value="{{ $demo->email }}">
-                            <button type="submit" class="w-full text-left p-3.5 rounded-2xl bg-gradient-to-br {{ $roleColor }} border transition-all duration-200 hover:scale-[1.02] shadow-md group">
-                                <div class="flex items-center justify-between mb-1.5">
-                                    <span class="text-xs font-extrabold uppercase tracking-wider font-mono">{{ $demo->role->name }}</span>
-                                    <svg class="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-                                </div>
-                                <div class="text-sm font-semibold text-white group-hover:text-blue-200 truncate">{{ $demo->name }}</div>
-                                <div class="text-[11px] text-slate-400 mt-1 line-clamp-1">{{ $roleRoles[$demo->role->name] ?? '' }}</div>
-                            </button>
-                        </form>
+                        <div onclick="document.querySelector('input[name=email]').value='{{ $demo->email }}'; document.querySelector('input[name=password]').focus();"
+                             class="cursor-pointer p-3.5 rounded-2xl bg-gradient-to-br {{ $roleColor }} border hover:border-slate-500/60 transition-all duration-200 shadow-md group">
+                            <div class="flex items-center justify-between mb-1.5">
+                                <span class="text-xs font-extrabold uppercase tracking-wider font-mono">{{ $demo->role->name }}</span>
+                                <span class="text-[10px] text-slate-400 group-hover:text-cyan-300 transition-colors">Select &rarr;</span>
+                            </div>
+                            <div class="text-sm font-semibold text-white truncate">{{ $demo->name }}</div>
+                            <div class="text-[11px] text-slate-400 font-mono mt-0.5 truncate">{{ $demo->email }}</div>
+                            <div class="text-[10px] text-slate-400 mt-2 line-clamp-1 border-t border-slate-800/80 pt-1.5">{{ $roleDescriptions[$demo->role->name] ?? '' }}</div>
+                        </div>
                     @endforeach
                 </div>
             </div>
 
             <!-- Workflow hint footer -->
             <div class="mt-6 p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800 text-xs text-slate-400 font-mono flex items-center justify-between">
-                <span>Core Path: Reseller &rarr; Tx &rarr; MD &rarr; NOC &rarr; Billing &rarr; Active</span>
-                <span class="text-blue-400">100% Audited</span>
+                <span>Security Protocol: Role-Based Access Control (RBAC)</span>
+                <span class="text-cyan-400">NTTN Core v2026</span>
             </div>
         </div>
 

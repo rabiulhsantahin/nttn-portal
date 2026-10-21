@@ -137,7 +137,7 @@
                 </a>
                 @endif
 
-                @if(auth()->user()->isBilling() || auth()->user()->isMd() || auth()->user()->isSuperAdmin())
+                @if(auth()->user()->isBilling() || auth()->user()->isMd() || auth()->user()->isSuperAdmin() || auth()->user()->isReseller())
                 <a href="{{ route('billing.index') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all {{ request()->routeIs('billing.*') ? 'bg-violet-600/20 text-violet-400 border border-violet-500/30 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60' }}">
                     <svg class="w-5 h-5 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     <span>Billing & Invoices</span>
@@ -162,6 +162,13 @@
                 </a>
 
                 <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-3 pt-4 mb-2">System</div>
+
+                @if(auth()->user()->isSuperAdmin() || session()->has('impersonator_id'))
+                <a href="{{ route('users.index') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all {{ request()->routeIs('users.*') ? 'bg-purple-600/20 text-purple-400 border border-purple-500/30 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60' }}">
+                    <svg class="w-5 h-5 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                    <span>User & Role Access</span>
+                </a>
+                @endif
 
                 <a href="{{ route('activity-logs.index') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all {{ request()->routeIs('activity-logs.*') ? 'bg-slate-700/50 text-slate-200 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60' }}">
                     <svg class="w-5 h-5 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -193,6 +200,27 @@
 
         <!-- Main Content Area -->
         <div class="flex-1 flex flex-col overflow-hidden">
+            @if(session()->has('impersonator_id'))
+            <div class="bg-gradient-to-r from-purple-950 via-slate-900 to-purple-950 border-b border-purple-500/30 px-8 py-2.5 flex items-center justify-between text-xs text-purple-200 z-30 shadow-md">
+                <div class="flex items-center gap-3">
+                    <span class="flex h-2.5 w-2.5 relative">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-purple-500"></span>
+                    </span>
+                    <span>
+                        <strong class="text-white">Super Admin Access:</strong> Logged in as <span class="font-bold text-cyan-300">{{ auth()->user()->name }}</span> (<span class="font-mono uppercase text-purple-300">{{ auth()->user()->role->name }}</span>)
+                    </span>
+                </div>
+                <form method="POST" action="{{ route('users.stop-impersonate') }}">
+                    @csrf
+                    <button type="submit" class="px-3.5 py-1 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-lg text-xs shadow transition-all flex items-center gap-1.5">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                        <span>Return to Super Admin</span>
+                    </button>
+                </form>
+            </div>
+            @endif
+
             <!-- Topbar Header -->
             <header class="h-16 border-b border-slate-800/80 bg-slate-900/40 backdrop-blur-md px-8 flex items-center justify-between z-10">
                 <!-- Breadcrumbs / Page Title -->
@@ -200,14 +228,15 @@
                     <h1 class="text-lg font-bold text-white tracking-tight">{{ $header ?? 'NTTN Operations' }}</h1>
                 </div>
 
-                <!-- Quick Role Switcher Bar for Live Testing -->
+                @if(auth()->user()->isSuperAdmin() || session()->has('impersonator_id'))
+                <!-- Quick Role Switcher Bar for Super Admin -->
                 <div class="flex items-center gap-3">
-                    <span class="text-xs text-slate-400 font-mono hidden md:inline">Quick Role Switch:</span>
-                    <div class="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 p-1 rounded-xl shadow-inner">
+                    <span class="text-xs text-purple-300 font-mono hidden md:inline">Admin Switcher:</span>
+                    <div class="flex items-center gap-1.5 bg-slate-900/90 border border-purple-500/30 p-1 rounded-xl shadow-inner">
                         <form method="POST" action="{{ route('login.quick') }}">
                             @csrf
                             <input type="hidden" name="email" value="admin@nttn.test">
-                            <button type="submit" title="Switch to Super Admin" class="px-2.5 py-1 text-xs rounded-lg font-medium transition-colors {{ auth()->user()->isSuperAdmin() ? 'bg-purple-600 text-white font-bold' : 'text-slate-400 hover:text-white hover:bg-slate-800' }}">Admin</button>
+                            <button type="submit" title="Switch to Super Admin" class="px-2.5 py-1 text-xs rounded-lg font-medium transition-colors {{ auth()->user()->isSuperAdmin() && !session()->has('impersonator_id') ? 'bg-purple-600 text-white font-bold' : 'text-slate-400 hover:text-white hover:bg-slate-800' }}">Admin</button>
                         </form>
                         <form method="POST" action="{{ route('login.quick') }}">
                             @csrf
@@ -236,6 +265,7 @@
                         </form>
                     </div>
                 </div>
+                @endif
             </header>
 
             <!-- Notification Flashes -->

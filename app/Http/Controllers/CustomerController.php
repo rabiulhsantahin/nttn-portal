@@ -29,9 +29,9 @@ class CustomerController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('district', 'like', "%{$search}%")
-                  ->orWhere('thana', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%");
+                    ->orWhere('district', 'like', "%{$search}%")
+                    ->orWhere('thana', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%");
             });
         }
 
@@ -56,18 +56,18 @@ class CustomerController extends Controller
             'reseller.user',
             'links.billing',
             'links.workOrder.nocHandover',
-            'surveyRequests' => fn($q) => $q->latest()->take(10),
+            'surveyRequests' => fn ($q) => $q->latest()->take(10),
         ]);
 
         $stats = [
-            'active_links'    => $customer->links->where('status', Link::STATUS_ACTIVE)->count(),
+            'active_links' => $customer->links->where('status', Link::STATUS_ACTIVE)->count(),
             'total_bandwidth' => $customer->links->where('status', Link::STATUS_ACTIVE)->sum('bandwidth_mbps'),
-            'total_surveys'   => $customer->surveyRequests->count(),
-            'open_tickets'    => Ticket::whereHas('link', fn($q) => $q->where('customer_id', $customer->id))
-                                       ->whereIn('status', ['OPEN', 'WORKING'])->count(),
+            'total_surveys' => $customer->surveyRequests->count(),
+            'open_tickets' => Ticket::whereHas('link', fn ($q) => $q->where('customer_id', $customer->id))
+                ->whereIn('status', ['OPEN', 'WORKING'])->count(),
         ];
 
-        $openTickets = Ticket::whereHas('link', fn($q) => $q->where('customer_id', $customer->id))
+        $openTickets = Ticket::whereHas('link', fn ($q) => $q->where('customer_id', $customer->id))
             ->with('link')
             ->whereIn('status', ['OPEN', 'WORKING'])
             ->latest()

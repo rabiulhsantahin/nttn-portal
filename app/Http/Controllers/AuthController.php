@@ -34,9 +34,22 @@ class AuthController extends Controller
         ]);
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
+            $user = Auth::user();
+
+            if (! $user->is_active) {
+                Auth::logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                return back()->withErrors([
+                    'email' => 'Your account is currently deactivated. Please contact the Super Administrator.',
+                ])->onlyInput('email');
+            }
+
             $request->session()->regenerate();
+
             return redirect()->intended(route('dashboard'))
-                ->with('success', 'Welcome back, ' . Auth::user()->name . '!');
+                ->with('success', 'Welcome back, '.$user->name.'!');
         }
 
         return back()->withErrors([
@@ -46,20 +59,37 @@ class AuthController extends Controller
 
     public function quickLogin(Request $request)
     {
+        $currentAuth = Auth::user();
+        $isImpersonating = session()->has('impersonator_id');
+
+        // Only authenticated Super Admin or active impersonator can switch roles
+        if (! $currentAuth || (! $currentAuth->isSuperAdmin() && ! $isImpersonating)) {
+            abort(403, 'Unauthorized. Only Super Admin can switch roles.');
+        }
+
         $request->validate([
             'email' => ['required', 'email'],
         ]);
 
-        $user = User::where('email', $request->email)->firstOrFail();
-        Auth::login($user);
+        $targetUser = User::where('email', $request->email)->firstOrFail();
+
+        // If target is super admin, end impersonation
+        if ($targetUser->isSuperAdmin()) {
+            session()->forget('impersonator_id');
+        } elseif (! $isImpersonating) {
+            session(['impersonator_id' => $currentAuth->id]);
+        }
+
+        Auth::login($targetUser);
         $request->session()->regenerate();
 
         return redirect()->route('dashboard')
-            ->with('success', 'Switched session to ' . $user->name . ' (' . strtoupper($user->role->name) . ')');
+            ->with('success', 'Switched session to '.$targetUser->name.' ('.strtoupper($targetUser->role->name).')');
     }
 
     public function logout(Request $request)
     {
+        session()->forget('impersonator_id');
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

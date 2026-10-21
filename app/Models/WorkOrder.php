@@ -9,7 +9,9 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class WorkOrder extends Model
 {
     public const STATUS_ISSUED = 'ISSUED';
+
     public const STATUS_WORK_IN_PROGRESS = 'WORK_IN_PROGRESS';
+
     public const STATUS_COMPLETED = 'COMPLETED';
 
     protected $fillable = [

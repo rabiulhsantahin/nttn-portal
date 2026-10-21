@@ -4,10 +4,9 @@ namespace Database\Seeders;
 
 use App\Models\ActivityLog;
 use App\Models\Approval;
+use App\Models\Billing;
 use App\Models\Customer;
 use App\Models\Link;
-use App\Models\NocHandover;
-use App\Models\NocTest;
 use App\Models\Reseller;
 use App\Models\Role;
 use App\Models\SurveyFeedback;
@@ -188,10 +187,22 @@ class DatabaseSeeder extends Seeder
             'bandwidth_mbps' => 200,
             'nttn_provider' => 'Summit Communications',
             'circuit_id' => 'SCL-CTG-AGR-889',
+            'nttn_link_id' => 'SCL-NTTN-LNK-5524',
             'vlan' => 'VLAN-2110',
             'port' => 'GigE-1/0/12',
             'status' => Link::STATUS_ACTIVE,
             'activation_date' => now()->subDays(7),
+        ]);
+
+        Billing::firstOrCreate(['link_id' => $link->id], [
+            'invoice_no' => 'INV-2026-0001',
+            'installation_charge' => 25000.00,
+            'monthly_charge' => 45000.00,
+            'nttn_cost' => 30000.00,
+            'billing_start_date' => now()->subDays(7),
+            'due_date' => now()->addDays(23),
+            'status' => Billing::STATUS_COMPLETED,
+            'completed_by' => $billingUser->id,
         ]);
 
         Ticket::firstOrCreate(['ticket_no' => 'TT-2026-0010'], [
@@ -202,6 +213,57 @@ class DatabaseSeeder extends Seeder
             'priority' => Ticket::PRIORITY_HIGH,
             'description' => 'Optical power dipped from -14dBm to -24dBm near midnight.',
             'status' => Ticket::STATUS_WORKING,
+        ]);
+
+        // 7. Second Reseller Demo Profile (Multi-Tenant Isolation Demo)
+        $resellerUser2 = User::firstOrCreate(['email' => 'reseller2@isp.test'], [
+            'role_id' => $roles[Role::RESELLER]->id,
+            'name' => 'Kazi Nazrul (Metro Net ISP)',
+            'phone' => '+8801700000007',
+            'password' => Hash::make('password'),
+            'is_active' => true,
+        ]);
+
+        $reseller2 = Reseller::firstOrCreate(['user_id' => $resellerUser2->id], [
+            'reseller_code' => 'RSL-1002',
+            'company_name' => 'Metro Net Communication Ltd.',
+            'address' => 'GEC Circle, Chattogram',
+            'phone' => '+8801700000007',
+        ]);
+
+        $customer3 = Customer::firstOrCreate(['name' => 'Sylhet Tea Estate Corp.'], [
+            'reseller_id' => $reseller2->id,
+            'phone' => '+8801722334455',
+            'address' => 'Zindabazar Commercial Area',
+            'district' => 'Sylhet',
+            'thana' => 'Kotwali',
+            'latitude' => 24.8949,
+            'longitude' => 91.8687,
+        ]);
+
+        $link2 = Link::firstOrCreate(['link_id' => 'LNK-SYL-0088'], [
+            'customer_id' => $customer3->id,
+            'reseller_id' => $reseller2->id,
+            'work_order_id' => null,
+            'bandwidth_mbps' => 100,
+            'nttn_provider' => 'Fiber@Home',
+            'circuit_id' => 'FAH-SYL-ZIN-102',
+            'nttn_link_id' => 'FAH-NTTN-LNK-9921',
+            'vlan' => 'VLAN-1502',
+            'port' => 'GigE-0/0/2',
+            'status' => Link::STATUS_ACTIVE,
+            'activation_date' => now()->subDays(3),
+        ]);
+
+        Billing::firstOrCreate(['link_id' => $link2->id], [
+            'invoice_no' => 'INV-2026-0002',
+            'installation_charge' => 15000.00,
+            'monthly_charge' => 30000.00,
+            'nttn_cost' => 20000.00,
+            'billing_start_date' => now()->subDays(3),
+            'due_date' => now()->addDays(27),
+            'status' => Billing::STATUS_COMPLETED,
+            'completed_by' => $billingUser->id,
         ]);
     }
 }

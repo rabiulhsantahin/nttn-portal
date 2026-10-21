@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Link;
 use App\Models\Role;
+use App\Models\SurveyRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -11,6 +12,8 @@ class LinkController extends Controller
 {
     public function index(Request $request)
     {
+        SurveyRequest::pruneExpiredRecords(30);
+
         $user = Auth::user();
         $role = $user->role->name;
 
@@ -26,12 +29,16 @@ class LinkController extends Controller
 
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->where(function ($q) use ($search) {
+            $isReseller = ($role === Role::RESELLER);
+            $query->where(function ($q) use ($search, $isReseller) {
                 $q->where('link_id', 'like', "%{$search}%")
-                  ->orWhere('circuit_id', 'like', "%{$search}%")
-                  ->orWhereHas('customer', function ($cq) use ($search) {
-                      $cq->where('name', 'like', "%{$search}%");
-                  });
+                    ->orWhere('circuit_id', 'like', "%{$search}%")
+                    ->when(! $isReseller, function ($sub) use ($search) {
+                        $sub->orWhere('nttn_link_id', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('customer', function ($cq) use ($search) {
+                        $cq->where('name', 'like', "%{$search}%");
+                    });
             });
         }
 

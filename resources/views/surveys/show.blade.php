@@ -12,6 +12,8 @@
                     @if($survey->status === 'ACTIVE') bg-emerald-500/10 text-emerald-400 border border-emerald-500/20
                     @elseif(str_contains($survey->status, 'MD_APPROVAL')) bg-amber-500/10 text-amber-400 border border-amber-500/20
                     @elseif(str_contains($survey->status, 'REJECTED')) bg-rose-500/10 text-rose-400 border border-rose-500/20
+                    @elseif($survey->status === 'NOT_FEASIBLE') bg-rose-500/10 text-rose-400 border border-rose-500/20
+                    @elseif($survey->status === 'CANCELLED') bg-slate-500/10 text-slate-400 border border-slate-500/20
                     @elseif(str_contains($survey->status, 'WORK')) bg-cyan-500/10 text-cyan-400 border border-cyan-500/20
                     @elseif(str_contains($survey->status, 'NOC')) bg-emerald-500/10 text-emerald-400 border border-emerald-500/20
                     @elseif(str_contains($survey->status, 'BILLING')) bg-violet-500/10 text-violet-400 border border-violet-500/20
@@ -44,8 +46,8 @@
             'SURVEY_PROCESSING' => '2. Feasibility Survey',
             'FEEDBACK_READY' => '3. Feedback Ready',
             'MD_APPROVAL_PENDING' => '4. MD Capex Review',
-            'WORK_ORDER_ISSUED' => '5. Work Order Issued',
-            'WORK_IN_PROGRESS' => '6. Field Splicing',
+            'MD_APPROVED' => '5. Client Work Order',
+            'WORK_ORDER_ISSUED' => '6. Field Jointing',
             'NOC_HANDOVER' => '7. NOC Handover',
             'NOC_TESTING' => '8. NOC SLA Tests',
             'BILLING_PENDING' => '9. Commercial Billing',
@@ -54,9 +56,19 @@
         ];
 
         $stageKeys = array_keys($stages);
-        $currentIndex = array_search($survey->status, $stageKeys);
+        $effectiveStatus = $survey->status;
+        if ($effectiveStatus === 'WORK_IN_PROGRESS') {
+            $effectiveStatus = 'WORK_ORDER_ISSUED';
+        }
+        $currentIndex = array_search($effectiveStatus, $stageKeys);
         if ($currentIndex === false) {
-            $currentIndex = 3; // Default fallback for rejected/sent back
+            if ($effectiveStatus === 'NOT_FEASIBLE') {
+                $currentIndex = 1;
+            } elseif ($effectiveStatus === 'CANCELLED') {
+                $currentIndex = 0;
+            } else {
+                $currentIndex = 3; // Default fallback for rejected/sent back
+            }
         }
     @endphp
     <div class="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 overflow-x-auto shadow-xl">
@@ -171,67 +183,142 @@
         <div class="lg:col-span-2 space-y-6">
 
             <!-- 1. Transmission Feasibility Feedback Card -->
-            @if($survey->feedback)
+            @if($survey->feedbacks->isNotEmpty() || $survey->feedback)
+                @php
+                    $hasWorkOrder = (bool) $survey->workOrder;
+                    if ($hasWorkOrder) {
+                        // After work order, the infeasible table/card is removed; only the link chosen for the work order proceeds
+                        $chosen = ($survey->selectedFeedback && $survey->selectedFeedback->feasible)
+                            ? $survey->selectedFeedback
+                            : ($survey->feedbacks->firstWhere('feasible', true) ?? $survey->feedback);
+                        $allFbs = ($chosen && $chosen->feasible) ? collect([$chosen]) : $survey->feedbacks->where('feasible', true);
+                    } else {
+                        $allFbs = $survey->feedbacks->isNotEmpty() ? $survey->feedbacks : collect([$survey->feedback]);
+                    }
+                @endphp
                 <div class="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
                     <div class="flex items-center justify-between border-b border-slate-800 pb-3">
                         <div class="flex items-center gap-2">
                             <span class="w-6 h-6 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs font-bold">&check;</span>
                             <h3 class="font-bold text-white text-base">Transmission Feasibility Report</h3>
                         </div>
-                        <span class="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold {{ $survey->feedback->feasible ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20' }}">
-                            {{ $survey->feedback->feasible ? 'FEASIBLE' : 'INFEASIBLE' }}
+                        <span class="text-xs text-slate-400 font-mono">
+                            {{ $allFbs->count() > 1 ? 'Dual NTTN Comparison' : ($hasWorkOrder ? 'Approved NTTN Route' : 'Single Provider') }}
                         </span>
                     </div>
 
-                    <div class="grid sm:grid-cols-3 gap-4 text-xs">
-                        <div class="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800">
-                            <div class="text-slate-400">Fiber Distance</div>
-                            <div class="text-base font-extrabold text-cyan-400 font-mono mt-0.5">{{ $survey->feedback->fiber_distance_km }} km</div>
-                        </div>
-                        <div class="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800">
-                            <div class="text-slate-400">Installation Capex</div>
-                            <div class="text-base font-extrabold text-amber-400 font-mono mt-0.5">৳ {{ number_format($survey->feedback->installation_cost, 2) }}</div>
-                        </div>
-                        <div class="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800">
-                            <div class="text-slate-400">Recurring Monthly Cost</div>
-                            <div class="text-base font-extrabold text-white font-mono mt-0.5">৳ {{ number_format($survey->feedback->monthly_cost, 2) }}</div>
-                        </div>
-                    </div>
+                    <div class="grid {{ $allFbs->count() > 1 ? 'md:grid-cols-2 gap-4' : 'grid-cols-1' }}">
+                        @foreach($allFbs as $idx => $fb)
+                            @if(! $fb->feasible)
+                                <div class="p-4 rounded-2xl bg-slate-950/70 border border-rose-500/30 space-y-3">
+                                    <div class="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                                        <div class="flex items-center gap-2">
+                                            <span class="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                                {{ $fb->provider }}
+                                            </span>
+                                        </div>
+                                        <span class="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                            ইনফিজিবল (INFEASIBLE)
+                                        </span>
+                                    </div>
+                                    @if($fb->feedback)
+                                        <div class="text-[11px] text-slate-400 italic pt-1">
+                                            "{{ $fb->feedback }}"
+                                        </div>
+                                    @endif
+                                </div>
+                            @else
+                                <div class="p-4 rounded-2xl bg-slate-950/70 border {{ $fb->is_selected ? 'border-cyan-500/60 shadow-lg shadow-cyan-500/10' : 'border-slate-800' }} space-y-3">
+                                    <div class="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                                        <div class="flex items-center gap-2">
+                                            <span class="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                                                #{{ $idx + 1 }} {{ $fb->provider }}
+                                            </span>
+                                            @if($fb->is_selected)
+                                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                                    ✓ APPROVED
+                                                </span>
+                                            @endif
+                                        </div>
+                                        <span class="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                            FEASIBLE
+                                        </span>
+                                    </div>
 
-                    <div class="grid sm:grid-cols-2 gap-4 text-xs pt-2">
-                        <div>
-                            <span class="text-slate-400">Nearest Transmission POP:</span>
-                            <span class="text-slate-200 font-semibold ml-1">{{ $survey->feedback->nearest_pop }}</span>
-                        </div>
-                        <div>
-                            <span class="text-slate-400">Carrier Provider:</span>
-                            <span class="text-slate-200 font-semibold ml-1">{{ $survey->feedback->provider }}</span>
-                        </div>
-                        <div>
-                            <span class="text-slate-400">Port / Interface:</span>
-                            <span class="font-mono text-cyan-400 ml-1">{{ $survey->feedback->port ?? 'TBD' }}</span>
-                        </div>
-                        <div>
-                            <span class="text-slate-400">Assigned VLAN:</span>
-                            <span class="font-mono text-cyan-400 ml-1">{{ $survey->feedback->vlan ?? 'TBD' }}</span>
-                        </div>
-                        <div class="sm:col-span-2">
-                            <span class="text-slate-400">Optical Route:</span>
-                            <div class="text-slate-300 font-mono text-[11px] mt-1 p-2 bg-slate-950 rounded-lg border border-slate-800">{{ $survey->feedback->route }}</div>
-                        </div>
+                                    <div class="grid grid-cols-3 gap-2 text-xs">
+                                        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                                            <div class="text-[10px] text-slate-400 uppercase">Fiber Dist</div>
+                                            <div class="text-sm font-extrabold text-cyan-400 font-mono mt-0.5">{{ $fb->fiber_distance_km }} km</div>
+                                        </div>
+                                        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                                            <div class="text-[10px] text-slate-400 uppercase">Capex</div>
+                                            <div class="text-sm font-extrabold text-amber-400 font-mono mt-0.5">৳ {{ number_format($fb->installation_cost, 0) }}</div>
+                                        </div>
+                                        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                                            <div class="text-[10px] text-slate-400 uppercase">Monthly</div>
+                                            <div class="text-sm font-extrabold text-white font-mono mt-0.5">৳ {{ number_format($fb->monthly_cost, 0) }}</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="space-y-1.5 text-xs pt-1">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-slate-400">Nearest POP:</span>
+                                            <span class="text-slate-200 font-semibold">{{ $fb->nearest_pop }}</span>
+                                        </div>
+                                        @if($fb->pop_latitude && $fb->pop_longitude)
+                                            <div class="flex items-center justify-between">
+                                                <span class="text-slate-400">POP Lat/Long:</span>
+                                                <a href="https://www.google.com/maps?q={{ $fb->pop_latitude }},{{ $fb->pop_longitude }}" target="_blank"
+                                                    class="font-mono text-cyan-400 hover:text-cyan-300 hover:underline flex items-center gap-1">
+                                                    <span>{{ $fb->pop_latitude }}, {{ $fb->pop_longitude }}</span>
+                                                    <svg class="w-3 h-3 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                                </a>
+                                            </div>
+                                        @endif
+                                        @if($fb->vlan)
+                                            <div class="flex items-center justify-between">
+                                                <span class="text-slate-400">Assigned VLAN:</span>
+                                                <span class="font-mono text-cyan-400">{{ $fb->vlan }}</span>
+                                            </div>
+                                        @endif
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-slate-400">Delivery SLA:</span>
+                                            <span class="font-semibold text-slate-200">{{ $fb->expected_delivery_days }} Days</span>
+                                        </div>
+                                        @if($fb->route)
+                                            <div class="pt-1">
+                                                <span class="text-slate-400 block text-[11px]">Optical Route:</span>
+                                                <div class="text-slate-300 font-mono text-[11px] p-2 bg-slate-900 rounded-lg border border-slate-800 mt-0.5 truncate" title="{{ $fb->route }}">{{ $fb->route }}</div>
+                                            </div>
+                                        @endif
+                                        @if($fb->feedback)
+                                            <div class="text-[11px] text-slate-400 italic pt-1">
+                                                "{{ $fb->feedback }}"
+                                            </div>
+                                        @endif
+                                    </div>
+                                </div>
+                            @endif
+                        @endforeach
                     </div>
                 </div>
             @endif
 
             <!-- 2. Transmission Team: Input Feasibility Form -->
             @if(in_array($survey->status, ['SURVEY_REQUESTED', 'SURVEY_PROCESSING', 'SENT_BACK']) && (auth()->user()->isTransmission() || auth()->user()->isSuperAdmin()))
-                <div class="bg-gradient-to-br from-cyan-950/40 via-slate-900 to-slate-900 border border-cyan-500/30 rounded-3xl p-6 shadow-2xl space-y-4">
+                @php
+                    $existingFbs = $survey->feedbacks;
+                    $fb1 = $existingFbs->get(0) ?? $survey->feedback;
+                    $fb2 = $existingFbs->get(1);
+                    $hasFb2 = (bool) $fb2;
+                @endphp
+                <div class="bg-gradient-to-br from-cyan-950/40 via-slate-900 to-slate-900 border border-cyan-500/30 rounded-3xl p-6 shadow-2xl space-y-5">
                     <div class="flex items-center justify-between border-b border-cyan-500/20 pb-3">
                         <div class="flex items-center gap-2">
                             <span class="w-6 h-6 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs font-bold">Tx</span>
                             <h3 class="font-bold text-white text-base">Transmission Feasibility Input</h3>
                         </div>
-                        <span class="text-xs text-cyan-400 font-mono">Action Required</span>
+                        <span class="text-xs text-cyan-400 font-mono">1 or 2 NTTN Carriers</span>
                     </div>
 
                     @if($survey->status === 'SURVEY_REQUESTED')
@@ -243,64 +330,169 @@
                         </form>
                     @endif
 
-                    <form method="POST" action="{{ route('surveys.feedback', $survey) }}" class="space-y-4 text-xs">
+                    <form method="POST" action="{{ route('surveys.feedback', $survey) }}" class="space-y-6 text-xs">
                         @csrf
-                        <div class="grid sm:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block font-semibold text-slate-300 uppercase mb-1">Carrier Provider *</label>
-                                <input type="text" name="provider" value="{{ old('provider', $survey->preferred_nttn ?? 'Fiber@Home') }}" required
-                                    class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white">
+
+                        <!-- NTTN Provider 1 (Primary) -->
+                        <div class="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-4">
+                            <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                                <span class="font-bold text-cyan-400 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                                    <span class="w-5 h-5 rounded-md bg-cyan-500/20 text-cyan-300 flex items-center justify-center text-[10px]">1</span>
+                                    NTTN Carrier 1 (Primary)
+                                </span>
+                                <span class="text-[10px] text-slate-500 font-mono">Required</span>
                             </div>
-                            <div>
-                                <label class="block font-semibold text-slate-300 uppercase mb-1">Feasibility *</label>
-                                <select name="feasible" required class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white">
-                                    <option value="1">Feasible (Route Clear)</option>
-                                    <option value="0">Not Feasible (Duct/Capacity Block)</option>
-                                </select>
+
+                            <div class="grid sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">Carrier Provider *</label>
+                                    <input type="text" name="provider" value="{{ old('provider', $fb1?->provider ?? ($survey->preferred_nttn ?: 'Fiber@Home')) }}" required
+                                        class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">Feasibility *</label>
+                                    <select name="feasible" required class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white">
+                                        <option value="1" {{ old('feasible', $fb1?->feasible ?? 1) == 1 ? 'selected' : '' }}>Feasible (Route Clear)</option>
+                                        <option value="0" {{ old('feasible', $fb1?->feasible ?? 1) == 0 ? 'selected' : '' }}>Not Feasible (Duct/Capacity Block)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">Fiber Distance (km) *</label>
+                                    <input type="number" step="0.001" name="fiber_distance_km" value="{{ old('fiber_distance_km', $fb1?->fiber_distance_km ?? '4.250') }}" required
+                                        class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">Nearest POP Name *</label>
+                                    <input type="text" name="nearest_pop" value="{{ old('nearest_pop', $fb1?->nearest_pop ?? 'Central Core POP 02') }}" required
+                                        class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">POP Latitude (Lat)</label>
+                                    <input type="number" step="0.0000001" name="pop_latitude" value="{{ old('pop_latitude', $fb1?->pop_latitude ?? '23.7297430') }}" placeholder="e.g. 23.7297430"
+                                        class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">POP Longitude (Long)</label>
+                                    <input type="number" step="0.0000001" name="pop_longitude" value="{{ old('pop_longitude', $fb1?->pop_longitude ?? '90.4174310') }}" placeholder="e.g. 90.4174310"
+                                        class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">Provisioned VLAN</label>
+                                    <input type="text" name="vlan" value="{{ old('vlan', $fb1?->vlan ?? 'VLAN-1420') }}"
+                                        class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">Delivery SLA (Days) *</label>
+                                    <input type="number" name="expected_delivery_days" value="{{ old('expected_delivery_days', $fb1?->expected_delivery_days ?? 7) }}" required
+                                        class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">Installation Capex (৳) *</label>
+                                    <input type="number" step="0.01" name="installation_cost" value="{{ old('installation_cost', $fb1?->installation_cost ?? '35000') }}" required
+                                        class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">Monthly Cost (৳) *</label>
+                                    <input type="number" step="0.01" name="monthly_cost" value="{{ old('monthly_cost', $fb1?->monthly_cost ?? '45000') }}" required
+                                        class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono">
+                                </div>
+                                <div class="sm:col-span-2">
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">Detailed Fiber Path</label>
+                                    <input type="text" name="route" value="{{ old('route', $fb1?->route ?? 'Primary POP -> Ring Joint 4 -> Customer Premise') }}"
+                                        class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono">
+                                </div>
+                                <div class="sm:col-span-2">
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">Technical Feedback Remarks</label>
+                                    <textarea name="feedback" rows="2" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white">{{ old('feedback', $fb1?->feedback ?? 'Optical budget within -18dBm. Splicing scheduled.') }}</textarea>
+                                </div>
                             </div>
-                            <div>
-                                <label class="block font-semibold text-slate-300 uppercase mb-1">Fiber Distance (km) *</label>
-                                <input type="number" step="0.001" name="fiber_distance_km" value="{{ old('fiber_distance_km', '4.250') }}" required
-                                    class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white font-mono">
+                        </div>
+
+                        <!-- 2nd NTTN Provider Toggle -->
+                        <div class="pt-1">
+                            <label class="inline-flex items-center gap-2 cursor-pointer p-3 rounded-xl bg-slate-950/40 border border-slate-800 hover:border-slate-700 transition-colors">
+                                <input type="checkbox" id="has_provider_2_toggle" name="has_provider_2" value="1"
+                                    {{ old('has_provider_2', $hasFb2) ? 'checked' : '' }}
+                                    onchange="document.getElementById('provider_2_section').classList.toggle('hidden', !this.checked)"
+                                    class="w-4 h-4 rounded bg-slate-900 border-slate-700 text-cyan-600 focus:ring-0">
+                                <span class="font-bold text-white text-xs">
+                                    + Add 2nd NTTN Company Survey (Optional Comparative Feasibility)
+                                </span>
+                            </label>
+                        </div>
+
+                        <!-- NTTN Provider 2 (Alternative / Comparative) -->
+                        <div id="provider_2_section" class="{{ old('has_provider_2', $hasFb2) ? '' : 'hidden' }} p-4 rounded-2xl bg-slate-950/70 border border-indigo-500/30 space-y-4">
+                            <div class="flex items-center justify-between border-b border-indigo-500/20 pb-2">
+                                <span class="font-bold text-indigo-400 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                                    <span class="w-5 h-5 rounded-md bg-indigo-500/20 text-indigo-300 flex items-center justify-center text-[10px]">2</span>
+                                    NTTN Carrier 2 (Alternative Option)
+                                </span>
+                                <span class="text-[10px] text-indigo-400/80 font-mono">Comparative</span>
                             </div>
-                            <div>
-                                <label class="block font-semibold text-slate-300 uppercase mb-1">Nearest POP *</label>
-                                <input type="text" name="nearest_pop" value="{{ old('nearest_pop', 'Central Core POP 02') }}" required
-                                    class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white">
-                            </div>
-                            <div>
-                                <label class="block font-semibold text-slate-300 uppercase mb-1">POP Port / Interface</label>
-                                <input type="text" name="port" value="{{ old('port', 'TenGigE-0/0/2') }}"
-                                    class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white font-mono">
-                            </div>
-                            <div>
-                                <label class="block font-semibold text-slate-300 uppercase mb-1">Provisioned VLAN</label>
-                                <input type="text" name="vlan" value="{{ old('vlan', 'VLAN-1420') }}"
-                                    class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white font-mono">
-                            </div>
-                            <div>
-                                <label class="block font-semibold text-slate-300 uppercase mb-1">Installation Capex (৳) *</label>
-                                <input type="number" step="0.01" name="installation_cost" value="{{ old('installation_cost', '35000') }}" required
-                                    class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white font-mono">
-                            </div>
-                            <div>
-                                <label class="block font-semibold text-slate-300 uppercase mb-1">Monthly Cost (৳) *</label>
-                                <input type="number" step="0.01" name="monthly_cost" value="{{ old('monthly_cost', '45000') }}" required
-                                    class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white font-mono">
-                            </div>
-                            <div>
-                                <label class="block font-semibold text-slate-300 uppercase mb-1">Delivery SLA (Days) *</label>
-                                <input type="number" name="expected_delivery_days" value="{{ old('expected_delivery_days', 7) }}" required
-                                    class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white font-mono">
-                            </div>
-                            <div>
-                                <label class="block font-semibold text-slate-300 uppercase mb-1">Detailed Fiber Path</label>
-                                <input type="text" name="route" value="{{ old('route', 'Primary POP -> Ring Joint 4 -> Customer Premise') }}"
-                                    class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white font-mono">
-                            </div>
-                            <div class="sm:col-span-2">
-                                <label class="block font-semibold text-slate-300 uppercase mb-1">Technical Feedback Remarks</label>
-                                <textarea name="feedback" rows="2" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white">{{ old('feedback', 'Optical budget within -18dBm. Splicing scheduled.') }}</textarea>
+
+                            <div class="grid sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">Carrier Provider</label>
+                                    <input type="text" name="provider_2" value="{{ old('provider_2', $fb2?->provider ?? '') }}" placeholder="e.g. Summit Communications"
+                                        class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">Feasibility</label>
+                                    <select name="feasible_2" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white">
+                                        <option value="1" {{ old('feasible_2', $fb2?->feasible ?? 1) == 1 ? 'selected' : '' }}>Feasible (Route Clear)</option>
+                                        <option value="0" {{ old('feasible_2', $fb2?->feasible ?? 1) == 0 ? 'selected' : '' }}>Not Feasible (Duct/Capacity Block)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">Fiber Distance (km)</label>
+                                    <input type="number" step="0.001" name="fiber_distance_km_2" value="{{ old('fiber_distance_km_2', $fb2?->fiber_distance_km ?? '3.800') }}"
+                                        class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">Nearest POP Name</label>
+                                    <input type="text" name="nearest_pop_2" value="{{ old('nearest_pop_2', $fb2?->nearest_pop ?? 'Tejgaon Central Hub') }}"
+                                        class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">POP Latitude (Lat)</label>
+                                    <input type="number" step="0.0000001" name="pop_latitude_2" value="{{ old('pop_latitude_2', $fb2?->pop_latitude ?? '23.7590000') }}" placeholder="e.g. 23.7590000"
+                                        class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">POP Longitude (Long)</label>
+                                    <input type="number" step="0.0000001" name="pop_longitude_2" value="{{ old('pop_longitude_2', $fb2?->pop_longitude ?? '90.3900000') }}" placeholder="e.g. 90.3900000"
+                                        class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">Provisioned VLAN</label>
+                                    <input type="text" name="vlan_2" value="{{ old('vlan_2', $fb2?->vlan ?? 'VLAN-1425') }}"
+                                        class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">Delivery SLA (Days)</label>
+                                    <input type="number" name="expected_delivery_days_2" value="{{ old('expected_delivery_days_2', $fb2?->expected_delivery_days ?? 5) }}"
+                                        class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">Installation Capex (৳)</label>
+                                    <input type="number" step="0.01" name="installation_cost_2" value="{{ old('installation_cost_2', $fb2?->installation_cost ?? '32000') }}"
+                                        class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">Monthly Cost (৳)</label>
+                                    <input type="number" step="0.01" name="monthly_cost_2" value="{{ old('monthly_cost_2', $fb2?->monthly_cost ?? '42000') }}"
+                                        class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono">
+                                </div>
+                                <div class="sm:col-span-2">
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">Detailed Fiber Path</label>
+                                    <input type="text" name="route_2" value="{{ old('route_2', $fb2?->route ?? 'Tejgaon Node -> Mohakhali Flyover -> Customer Premise') }}"
+                                        class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono">
+                                </div>
+                                <div class="sm:col-span-2">
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">Technical Feedback Remarks</label>
+                                    <textarea name="feedback_2" rows="2" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white">{{ old('feedback_2', $fb2?->feedback ?? '') }}</textarea>
+                                </div>
                             </div>
                         </div>
 
@@ -310,6 +502,84 @@
                             </button>
                         </div>
                     </form>
+                </div>
+            @endif
+
+            <!-- 2.5 Reseller Infeasible Resolution Desk (When NOT_FEASIBLE) -->
+            @if($survey->status === 'NOT_FEASIBLE')
+                @php
+                    $isOwnerOrAdmin = auth()->user()->isSuperAdmin() || (auth()->user()->isReseller() && auth()->user()->reseller?->id === $survey->reseller_id);
+                @endphp
+                <div class="bg-gradient-to-br from-rose-950/40 via-slate-900 to-slate-900 border border-rose-500/40 rounded-3xl p-6 shadow-2xl space-y-5">
+                    <div class="flex items-center justify-between border-b border-rose-500/20 pb-3">
+                        <div class="flex items-center gap-2">
+                            <span class="w-6 h-6 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center text-xs font-bold">⚠️</span>
+                            <h3 class="font-bold text-white text-base">Transmission Feasibility: Infeasible Route</h3>
+                        </div>
+                        <span class="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30">
+                            Action Required by Reseller
+                        </span>
+                    </div>
+
+                    <div class="p-4 rounded-2xl bg-slate-950/70 border border-rose-500/20 space-y-3 text-xs">
+                        <p class="text-slate-300">
+                            The transmission engineering team has evaluated this location and determined that the current route is <strong class="text-rose-400 font-bold">Not Feasible</strong> due to duct/capacity block or lack of nearby optical reach.
+                        </p>
+                        @if($survey->feedbacks->count() > 0)
+                            <div class="space-y-2 pt-1">
+                                @foreach($survey->feedbacks as $fb)
+                                    <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-300">
+                                        <div class="flex items-center justify-between font-mono font-bold text-xs mb-1">
+                                            <span class="text-cyan-400">{{ $fb->provider }}</span>
+                                            <span class="px-2 py-0.5 rounded-full text-[10px] bg-rose-500/20 text-rose-400 border border-rose-500/30 font-bold">NOT FEASIBLE</span>
+                                        </div>
+                                        <div class="text-[11px] text-slate-400">
+                                            Nearest POP: <span class="text-slate-200 font-semibold">{{ $fb->nearest_pop }}</span> ({{ $fb->fiber_distance_km }} km)
+                                        </div>
+                                        @if($fb->feedback)
+                                            <div class="text-[11px] text-amber-300/90 italic mt-1">
+                                                Transmission Remarks: "{{ $fb->feedback }}"
+                                            </div>
+                                        @endif
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
+                    </div>
+
+                    @if($isOwnerOrAdmin)
+                        <div class="flex flex-col sm:flex-row items-center gap-3 pt-2">
+                            <a href="{{ route('surveys.edit', $survey) }}" class="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                <span>Edit & Re-submit Survey Parameters</span>
+                            </a>
+
+                            <form method="POST" action="{{ route('surveys.cancel', $survey) }}" class="w-full sm:w-auto" onsubmit="return confirm('Are you sure you want to cancel (বাতিল) this survey request?');">
+                                @csrf
+                                <button type="submit" class="w-full sm:w-auto px-5 py-2.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 hover:text-rose-300 border border-rose-500/30 font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                    <span>Cancel Request (বাতিল করুন)</span>
+                                </button>
+                            </form>
+                        </div>
+                    @else
+                        <div class="text-xs text-slate-400 italic">
+                            Awaiting response from Reseller ({{ $survey->reseller->company_name }}) to either revise route parameters or cancel the order.
+                        </div>
+                    @endif
+                </div>
+            @endif
+
+            <!-- 2.6 Cancelled Notice -->
+            @if($survey->status === 'CANCELLED')
+                <div class="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-3">
+                    <div class="flex items-center gap-2 text-slate-400">
+                        <span class="w-6 h-6 rounded-lg bg-slate-800 text-slate-400 flex items-center justify-center text-xs font-bold">&times;</span>
+                        <h3 class="font-bold text-white text-base">Survey Request Cancelled (বাতিলকৃত)</h3>
+                    </div>
+                    <p class="text-xs text-slate-400">
+                        This survey request was cancelled by the reseller following transmission engineering feasibility evaluation.
+                    </p>
                 </div>
             @endif
 
@@ -325,20 +595,59 @@
                     </div>
 
                     <p class="text-xs text-slate-300 leading-relaxed">
-                        Review Capex (৳ {{ number_format($survey->feedback?->installation_cost ?? 0, 2) }}) and Monthly Revenue/Cost (৳ {{ number_format($survey->feedback?->monthly_cost ?? 0, 2) }}). Approving this will instantly issue a binding Work Order to Transmission engineers.
+                        Review submitted feasibility survey options below. Approving will select the approved carrier and forward the commercial quotation to the client/reseller portal to issue the official Work Order.
                     </p>
 
                     <form method="POST" action="{{ route('approvals.decide', $survey) }}" class="space-y-4 text-xs">
                         @csrf
+
+                        @php
+                            $feasibleFbs = $survey->feedbacks->where('feasible', true);
+                        @endphp
+
+                        @if($feasibleFbs->count() > 1)
+                            <div>
+                                <label class="block font-semibold text-slate-300 uppercase mb-2">Select Approved NTTN Carrier for Work Order *</label>
+                                <div class="grid sm:grid-cols-2 gap-3">
+                                    @foreach($feasibleFbs as $fb)
+                                        <label class="p-3.5 rounded-xl border {{ $fb->is_selected || $loop->first ? 'border-amber-500 bg-amber-500/10' : 'border-slate-800 bg-slate-950/60' }} cursor-pointer flex items-start gap-3 hover:border-amber-500/50 transition-colors">
+                                            <input type="radio" name="selected_feedback_id" value="{{ $fb->id }}" {{ $fb->is_selected || $loop->first ? 'checked' : '' }} class="mt-1 text-amber-500 focus:ring-0">
+                                            <div class="space-y-1 text-xs">
+                                                <div class="font-bold text-white text-sm">{{ $fb->provider }}</div>
+                                                <div class="text-slate-300">Distance: <span class="font-mono text-cyan-400 font-bold">{{ $fb->fiber_distance_km }} km</span> | SLA: <span class="text-white font-bold">{{ $fb->expected_delivery_days }} days</span></div>
+                                                <div class="text-slate-300">Capex: <span class="font-mono text-amber-400">৳ {{ number_format($fb->installation_cost, 0) }}</span> | Monthly: <span class="font-mono text-emerald-400">৳ {{ number_format($fb->monthly_cost, 0) }}</span></div>
+                                                @if($fb->pop_latitude && $fb->pop_longitude)
+                                                    <div class="text-[11px] text-slate-400 font-mono">POP Lat/Long: {{ $fb->pop_latitude }}, {{ $fb->pop_longitude }}</div>
+                                                @endif
+                                            </div>
+                                        </label>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @elseif($feasibleFbs->count() === 1)
+                            @php $singleFeasible = $feasibleFbs->first(); @endphp
+                            <input type="hidden" name="selected_feedback_id" value="{{ $singleFeasible->id }}">
+                            <div class="p-3.5 rounded-xl border border-amber-500/30 bg-slate-950/70 text-xs space-y-1.5">
+                                <div class="flex items-center justify-between">
+                                    <span class="font-bold text-white text-sm">{{ $singleFeasible->provider }}</span>
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                        FEASIBLE (একমাত্র ফিজিবল লিংক)
+                                    </span>
+                                </div>
+                                <div class="text-slate-300">Distance: <span class="font-mono text-cyan-400 font-bold">{{ $singleFeasible->fiber_distance_km }} km</span> | SLA: <span class="text-white font-bold">{{ $singleFeasible->expected_delivery_days }} days</span></div>
+                                <div class="text-slate-300">Capex: <span class="font-mono text-amber-400">৳ {{ number_format($singleFeasible->installation_cost, 0) }}</span> | Monthly: <span class="font-mono text-emerald-400">৳ {{ number_format($singleFeasible->monthly_cost, 0) }}</span></div>
+                            </div>
+                        @endif
+
                         <div>
                             <label class="block font-semibold text-slate-300 uppercase mb-1">Executive Remarks / Instructions</label>
-                            <textarea name="remarks" rows="2" placeholder="Approved for deployment within 7 days SLA..."
+                            <textarea name="remarks" rows="2" placeholder="Approved for client work order issuance..."
                                 class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white"></textarea>
                         </div>
 
                         <div class="flex flex-wrap items-center gap-3 pt-2">
                             <button type="submit" name="decision" value="approve" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-2">
-                                <span>&check; Approve & Issue Work Order</span>
+                                <span>&check; Approve & Forward to Client Portal</span>
                             </button>
                             <button type="submit" name="decision" value="send_back" class="px-4 py-2.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 font-semibold rounded-xl transition-all">
                                 Send Back to Transmission
@@ -349,6 +658,103 @@
                         </div>
                     </form>
                 </div>
+            @endif
+
+            <!-- 3.5 Client / Reseller Work Order Issuance Desk (When MD_APPROVED) -->
+            @if($survey->status === 'MD_APPROVED')
+                @php
+                    $isInitiator = auth()->user()->isSuperAdmin() || (auth()->user()->isReseller() && auth()->user()->reseller?->id === $survey->reseller_id);
+                    $approvedFb = ($survey->selectedFeedback && $survey->selectedFeedback->feasible)
+                        ? $survey->selectedFeedback
+                        : ($survey->feedbacks->firstWhere('feasible', true) ?? $survey->feedback);
+                @endphp
+
+                @if($isInitiator)
+                    <div class="bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 border border-emerald-500/40 rounded-3xl p-6 shadow-2xl space-y-5">
+                        <div class="flex items-center justify-between border-b border-emerald-500/20 pb-3">
+                            <div class="flex items-center gap-2">
+                                <span class="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-bold">WO</span>
+                                <h3 class="font-bold text-white text-base">Client Work Order Issuance Desk</h3>
+                            </div>
+                            <span class="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                                Feasibility Approved by MD
+                            </span>
+                        </div>
+
+                        <div class="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-3">
+                            <div class="text-xs font-bold uppercase tracking-wider text-emerald-400">Approved Commercial Quotation</div>
+                            <div class="grid sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                                <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                                    <div class="text-slate-400 text-[11px]">Selected NTTN Provider</div>
+                                    <div class="text-white font-bold text-sm mt-0.5">{{ $approvedFb?->provider ?? 'NTTN Carrier' }}</div>
+                                </div>
+                                <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                                    <div class="text-slate-400 text-[11px]">Fiber Route Distance</div>
+                                    <div class="text-cyan-400 font-mono font-bold text-sm mt-0.5">{{ $approvedFb?->fiber_distance_km ?? 'N/A' }} km</div>
+                                </div>
+                                <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                                    <div class="text-slate-400 text-[11px]">Installation Capex (OTC)</div>
+                                    <div class="text-amber-400 font-mono font-bold text-sm mt-0.5">৳ {{ number_format($approvedFb?->installation_cost ?? 0, 0) }}</div>
+                                </div>
+                                <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                                    <div class="text-slate-400 text-[11px]">Monthly Recurring (MRC)</div>
+                                    <div class="text-emerald-400 font-mono font-bold text-sm mt-0.5">৳ {{ number_format($approvedFb?->monthly_cost ?? 0, 0) }}</div>
+                                </div>
+                            </div>
+                            @if($approvedFb?->pop_latitude && $approvedFb?->pop_longitude)
+                                <div class="text-xs text-slate-300 flex items-center gap-2 pt-1">
+                                    <span class="text-slate-400">Nearest POP Coordinates:</span>
+                                    <span class="font-mono text-cyan-400">{{ $approvedFb->pop_latitude }}, {{ $approvedFb->pop_longitude }}</span>
+                                    <a href="https://www.google.com/maps?q={{ $approvedFb->pop_latitude }},{{ $approvedFb->pop_longitude }}" target="_blank" class="text-[11px] text-blue-400 hover:underline">
+                                        (View on Google Maps &rarr;)
+                                    </a>
+                                </div>
+                            @endif
+                        </div>
+
+                        <form method="POST" action="{{ route('surveys.issue-work-order', $survey) }}" class="space-y-4 text-xs">
+                            @csrf
+                            <div class="grid sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">Client Purchase / Work Order Ref No.</label>
+                                    <input type="text" name="client_po_no" placeholder="e.g. PO-{{ date('Y') }}-{{ $survey->reseller->reseller_code }}-01 (Optional)"
+                                        class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white font-mono placeholder:text-slate-600">
+                                    <span class="text-[11px] text-slate-500">Leave blank to auto-generate standard Work Order number.</span>
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">Target Delivery SLA (Days)</label>
+                                    <input type="number" name="deadline_days" value="{{ old('deadline_days', $approvedFb?->expected_delivery_days ?? 7) }}" min="1"
+                                        class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white font-mono">
+                                </div>
+                                <div class="sm:col-span-2">
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">Work Order Instructions / Scope Remarks</label>
+                                    <textarea name="instructions" rows="2" placeholder="Authorized to proceed with fiber laying and POP termination at customer premise..."
+                                        class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white"></textarea>
+                                </div>
+                            </div>
+
+                            <div class="pt-2 text-right">
+                                <button type="submit" class="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-2 ml-auto">
+                                    <span>&check; Issue Work Order & Authorize Field Jointing</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                @else
+                    <div class="bg-gradient-to-br from-amber-950/20 via-slate-900 to-slate-900 border border-amber-500/30 rounded-3xl p-6 shadow-xl space-y-3">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-sm">⏳</span>
+                            <div>
+                                <h4 class="text-sm font-bold text-white">Awaiting Client Work Order Confirmation</h4>
+                                <p class="text-xs text-slate-300 mt-0.5">
+                                    Feasibility has been approved by MD for <strong class="text-emerald-400">{{ $approvedFb?->provider ?? 'selected carrier' }}</strong>.
+                                    The quotation is currently sent to the <strong>{{ $survey->reseller->company_name }}</strong> portal.
+                                    Once the client issues their Work Order, the Transmission team field jointing & splicing workbench will automatically unlock.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                @endif
             @endif
 
             <!-- 4. Work Order Execution & Transmission Handover to NOC -->
@@ -389,40 +795,62 @@
                     @endif
 
                     @if(in_array($survey->workOrder->status, ['ISSUED', 'WORK_IN_PROGRESS']) && (auth()->user()->isTransmission() || auth()->user()->isSuperAdmin()))
-                        <div class="p-4 rounded-2xl bg-slate-950/70 border border-cyan-500/30 mt-4 space-y-3">
-                            <h4 class="text-xs font-bold uppercase tracking-wider text-cyan-400">Handover Completed Physical Link to NOC</h4>
+                        <div class="p-4 rounded-2xl bg-slate-950/70 border border-cyan-500/30 mt-4 space-y-4">
+                            @if($survey->workOrder->nocHandover?->status === 'REJECTED')
+                                <div class="p-4 rounded-2xl bg-rose-950/40 border border-rose-500/40 space-y-2">
+                                    <div class="flex items-center gap-2 text-rose-400 font-bold text-xs uppercase tracking-wider">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                                        <span>Trouble Ticket Dispatched by NOC — Field Rework Required</span>
+                                    </div>
+                                    <div class="text-xs text-slate-300">
+                                        NOC Defect Reason: <strong class="text-white">{{ $survey->workOrder->nocHandover->remarks }}</strong>
+                                    </div>
+                                    <div class="text-[11px] text-rose-300">
+                                        Please conduct physical field rectification (re-splicing, patch cord replacement, optical level check) and re-submit the handover to NOC below.
+                                    </div>
+                                </div>
+                            @endif
+
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-cyan-400">
+                                {{ $survey->workOrder->nocHandover?->status === 'REJECTED' ? 'Re-Submit Completed Physical Link to NOC' : 'Handover Completed Physical Link to NOC' }}
+                            </h4>
                             <form method="POST" action="{{ route('work-orders.handover', $survey->workOrder) }}" class="space-y-3 text-xs">
                                 @csrf
                                 <div class="grid sm:grid-cols-2 gap-3">
                                     <div>
                                         <label class="block font-semibold text-slate-300 uppercase mb-1">Circuit ID *</label>
-                                        <input type="text" name="circuit_id" value="{{ old('circuit_id', 'CIR-' . strtoupper(Str::random(6))) }}" required
+                                        <input type="text" name="circuit_id" value="{{ old('circuit_id', $survey->workOrder->link?->circuit_id ?? ('CIR-' . strtoupper(Str::random(6)))) }}" required
+                                            class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono">
+                                    </div>
+                                    <div>
+                                        <label class="block font-semibold text-slate-300 uppercase mb-1">NTTN Link ID <span class="text-[10px] text-slate-400 font-normal lowercase">(carrier link id)</span></label>
+                                        <input type="text" name="nttn_link_id" value="{{ old('nttn_link_id', $survey->workOrder->link?->nttn_link_id) }}" placeholder="e.g. NTTN-LNK-88219"
                                             class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono">
                                     </div>
                                     <div>
                                         <label class="block font-semibold text-slate-300 uppercase mb-1">NTTN Carrier Provider *</label>
-                                        <input type="text" name="nttn_provider" value="{{ old('nttn_provider', $survey->feedback->provider ?? 'Fiber@Home') }}" required
+                                        <input type="text" name="nttn_provider" value="{{ old('nttn_provider', $survey->workOrder->link?->nttn_provider ?? ($survey->selectedFeedback?->provider ?? ($survey->feedback?->provider ?? 'Fiber@Home'))) }}" required
                                             class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white">
                                     </div>
                                     <div>
-                                        <label class="block font-semibold text-slate-300 uppercase mb-1">Provisioned VLAN *</label>
-                                        <input type="text" name="vlan" value="{{ old('vlan', $survey->feedback->vlan ?? 'VLAN-2040') }}" required
+                                        <label class="block font-semibold text-slate-300 uppercase mb-1">POP Port *</label>
+                                        <input type="text" name="port" value="{{ old('port', $survey->workOrder->link?->port ?? ($survey->selectedFeedback?->port ?? ($survey->feedback?->port ?? 'TenGigE-0/1/4'))) }}" required
                                             class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono">
                                     </div>
-                                    <div>
-                                        <label class="block font-semibold text-slate-300 uppercase mb-1">POP Port *</label>
-                                        <input type="text" name="port" value="{{ old('port', $survey->feedback->port ?? 'TenGigE-0/1/4') }}" required
+                                    <div class="sm:col-span-2">
+                                        <label class="block font-semibold text-slate-300 uppercase mb-1">Provisioned VLAN *</label>
+                                        <input type="text" name="vlan" value="{{ old('vlan', $survey->workOrder->link?->vlan ?? ($survey->selectedFeedback?->vlan ?? ($survey->feedback?->vlan ?? 'VLAN-2040'))) }}" required
                                             class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono">
                                     </div>
                                     <div class="sm:col-span-2">
                                         <label class="block font-semibold text-slate-300 uppercase mb-1">Handover Notes for NOC Team</label>
-                                        <input type="text" name="remarks" value="Fiber jointed and patched at ODF tray 4. Optical power at -16.5 dBm."
+                                        <input type="text" name="remarks" value="{{ $survey->workOrder->nocHandover?->status === 'REJECTED' ? 'Field rework and re-splicing completed. Optical level tested optimal.' : 'Fiber jointed and patched at ODF tray 4. Optical power at -16.5 dBm.' }}"
                                             class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white">
                                     </div>
                                 </div>
                                 <div class="text-right pt-1">
                                     <button type="submit" class="px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-xl shadow-lg transition-all">
-                                        Complete Field Work & Submit NOC Handover &rarr;
+                                        {{ $survey->workOrder->nocHandover?->status === 'REJECTED' ? 'Re-Submit Field Work & Handover to NOC →' : 'Complete Field Work & Submit NOC Handover →' }}
                                     </button>
                                 </div>
                             </form>
@@ -440,7 +868,11 @@
                             <span class="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-bold">NOC</span>
                             <h3 class="font-bold text-white text-base">Network Operations Center (NOC) Handover</h3>
                         </div>
-                        <span class="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold
+                            @if($handover->status === 'VERIFIED') bg-emerald-500/10 text-emerald-400 border border-emerald-500/20
+                            @elseif($handover->status === 'REJECTED') bg-rose-500/10 text-rose-400 border border-rose-500/20
+                            @elseif($handover->status === 'TESTING') bg-amber-500/10 text-amber-400 border border-amber-500/20
+                            @else bg-blue-500/10 text-blue-400 border border-blue-500/20 @endif">
                             {{ $handover->status }}
                         </span>
                     </div>
@@ -452,11 +884,37 @@
                         @endif
                     </div>
 
+                    @if($handover->link)
+                        <div class="p-3 bg-slate-950/60 rounded-xl border border-slate-800 flex flex-wrap gap-4 text-xs font-mono text-slate-300">
+                            <span>Circuit: <strong class="text-cyan-400">{{ $handover->link->circuit_id ?? 'N/A' }}</strong></span>
+                            @if(!auth()->user()->isReseller() && $handover->link->nttn_link_id)
+                                <span>NTTN Link ID: <strong class="text-emerald-400">{{ $handover->link->nttn_link_id }}</strong></span>
+                            @endif
+                            <span>Carrier: <strong class="text-slate-200">{{ $handover->link->nttn_provider ?? 'N/A' }}</strong></span>
+                            <span>VLAN: <strong class="text-slate-200">{{ $handover->link->vlan ?? 'N/A' }}</strong></span>
+                            <span>Port: <strong class="text-slate-200">{{ $handover->link->port ?? 'N/A' }}</strong></span>
+                        </div>
+                    @endif
+
+                    @if($handover->status === 'REJECTED')
+                        <div class="p-4 rounded-2xl bg-rose-950/30 border border-rose-500/30 space-y-2">
+                            <div class="flex items-center gap-2 text-rose-400 font-bold text-xs">
+                                <span>⚠️ Handover Returned to Transmission Team</span>
+                            </div>
+                            <div class="text-xs text-slate-300">
+                                Reason: <strong class="text-white">{{ $handover->remarks }}</strong>
+                            </div>
+                            <div class="text-[11px] text-slate-400">
+                                Trouble ticket dispatched. Waiting for Transmission engineers to complete field jointing rework and re-submit to NOC.
+                            </div>
+                        </div>
+                    @endif
+
                     @if(in_array($handover->status, ['RECEIVED', 'TESTING']) && (auth()->user()->isNoc() || auth()->user()->isSuperAdmin()))
                         <div class="p-4 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 space-y-4">
                             <div class="flex items-center justify-between">
                                 <h4 class="text-xs font-bold uppercase tracking-wider text-emerald-400">8-Point SLA Technical Test Suite</h4>
-                                <span class="text-[11px] font-mono text-emerald-300">All checks must pass</span>
+                                <span class="text-[11px] font-mono text-emerald-300">All checks must pass to verify</span>
                             </div>
 
                             <form method="POST" action="{{ route('noc.submit-test', $handover) }}" class="space-y-4 text-xs">
@@ -497,14 +955,20 @@
                                 </div>
 
                                 <div>
-                                    <label class="block font-semibold text-slate-300 uppercase mb-1">NOC Testing Remarks</label>
-                                    <input type="text" name="remarks" value="Full optical & throughput validation completed successfully."
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">NOC Testing Remarks / Defect Details</label>
+                                    <input type="text" name="remarks" id="noc_remarks" value="Full optical & throughput validation completed successfully."
                                         class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white">
+                                    <span class="text-[11px] text-slate-400">If returning TT to Transmission, describe the fault (e.g. optical loss, macro-bend, port error).</span>
                                 </div>
 
-                                <div class="text-right">
-                                    <button type="submit" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/30 transition-all">
-                                        Submit NOC Verification &rarr; Transfer to Billing
+                                <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
+                                    <button type="submit" name="action" value="reject" class="px-4 py-2.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 font-semibold rounded-xl transition-all flex items-center gap-2" onclick="if(document.getElementById('noc_remarks').value === 'Full optical & throughput validation completed successfully.') { document.getElementById('noc_remarks').value = 'Optical power / SLA failure. Requires field re-splicing.'; }">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                                        <span>Issue TT & Send Back to Tx</span>
+                                    </button>
+
+                                    <button type="submit" name="action" value="verify" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-2">
+                                        <span>&check; Submit NOC Verification &rarr; Transfer to Billing</span>
                                     </button>
                                 </div>
                             </form>
@@ -515,48 +979,69 @@
 
             <!-- 6. Billing Department Workbench -->
             @if($survey->status === 'BILLING_PENDING' && (auth()->user()->isBilling() || auth()->user()->isSuperAdmin()))
+                @php
+                    $existingBilling = $survey->workOrder?->link?->billing;
+                    $lastReturnedApproval = $survey->approvals()->where('approval_stage', 'FINAL_MD')->where('status', 'SENT_BACK')->latest()->first();
+                @endphp
                 <div class="bg-gradient-to-br from-violet-950/40 via-slate-900 to-slate-900 border border-violet-500/30 rounded-3xl p-6 shadow-2xl space-y-4">
                     <div class="flex items-center justify-between border-b border-violet-500/20 pb-3">
                         <div class="flex items-center gap-2">
                             <span class="w-6 h-6 rounded-lg bg-violet-500/20 text-violet-400 flex items-center justify-center text-xs font-bold">$$</span>
                             <h3 class="font-bold text-white text-base">Commercial Invoicing & Billing Generation</h3>
                         </div>
-                        <span class="text-xs text-violet-400 font-mono font-bold">Action Required</span>
+                        <span class="text-xs font-mono font-bold {{ $lastReturnedApproval ? 'text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20' : 'text-violet-400' }}">
+                            {{ $lastReturnedApproval ? '⚠️ Billing Returned for Correction' : 'Action Required' }}
+                        </span>
                     </div>
+
+                    @if($lastReturnedApproval)
+                        <div class="p-4 rounded-2xl bg-amber-950/40 border border-amber-500/40 space-y-2">
+                            <div class="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                                <span>Returned by Managing Director (MD) — Billing Correction Requested</span>
+                            </div>
+                            <div class="text-xs text-slate-300">
+                                MD Remarks / Reason: <strong class="text-white">{{ $lastReturnedApproval->remarks }}</strong>
+                            </div>
+                            <div class="text-[11px] text-slate-400">
+                                Please revise the commercial charges, cycle dates, or invoice values and re-submit to MD for final commissioning.
+                            </div>
+                        </div>
+                    @endif
 
                     <form method="POST" action="{{ route('billing.process', $survey) }}" class="space-y-4 text-xs">
                         @csrf
                         <div class="grid sm:grid-cols-3 gap-3">
                             <div>
                                 <label class="block font-semibold text-slate-300 uppercase mb-1">Installation Charge (৳) *</label>
-                                <input type="number" step="0.01" name="installation_charge" value="{{ old('installation_charge', $survey->feedback->installation_cost ?? 40000) }}" required
+                                <input type="number" step="0.01" name="installation_charge" value="{{ old('installation_charge', $existingBilling->installation_charge ?? ($survey->selectedFeedback?->installation_cost ?? ($survey->feedback?->installation_cost ?? 40000))) }}" required
                                     class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white font-mono">
                             </div>
                             <div>
                                 <label class="block font-semibold text-slate-300 uppercase mb-1">Monthly Billing (৳) *</label>
-                                <input type="number" step="0.01" name="monthly_charge" value="{{ old('monthly_charge', $survey->feedback->monthly_cost ?? 60000) }}" required
+                                <input type="number" step="0.01" name="monthly_charge" value="{{ old('monthly_charge', $existingBilling->monthly_charge ?? ($survey->selectedFeedback?->monthly_cost ?? ($survey->feedback?->monthly_cost ?? 60000))) }}" required
                                     class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white font-mono">
                             </div>
                             <div>
                                 <label class="block font-semibold text-slate-300 uppercase mb-1">Carrier NTTN Cost (৳) *</label>
-                                <input type="number" step="0.01" name="nttn_cost" value="{{ old('nttn_cost', 25000) }}" required
+                                <input type="number" step="0.01" name="nttn_cost" value="{{ old('nttn_cost', $existingBilling->nttn_cost ?? 25000) }}" required
                                     class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white font-mono">
                             </div>
                             <div>
                                 <label class="block font-semibold text-slate-300 uppercase mb-1">Billing Start Date *</label>
-                                <input type="date" name="billing_start_date" value="{{ date('Y-m-d') }}" required
+                                <input type="date" name="billing_start_date" value="{{ old('billing_start_date', $existingBilling?->billing_start_date?->format('Y-m-d') ?? date('Y-m-d')) }}" required
                                     class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white font-mono">
                             </div>
                             <div>
                                 <label class="block font-semibold text-slate-300 uppercase mb-1">First Invoice Due Date *</label>
-                                <input type="date" name="due_date" value="{{ date('Y-m-d', strtotime('+15 days')) }}" required
+                                <input type="date" name="due_date" value="{{ old('due_date', $existingBilling?->due_date?->format('Y-m-d') ?? date('Y-m-d', strtotime('+15 days'))) }}" required
                                     class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white font-mono">
                             </div>
                         </div>
 
                         <div class="text-right pt-2">
                             <button type="submit" class="px-5 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold rounded-xl shadow-lg transition-all">
-                                Issue Commercial Invoice &rarr; Escalate to Final MD Commissioning
+                                {{ $lastReturnedApproval ? 'Re-Issue Corrected Invoice → Escalate to Final MD Commissioning' : 'Issue Commercial Invoice → Escalate to Final MD Commissioning' }}
                             </button>
                         </div>
                     </form>
@@ -575,23 +1060,72 @@
                     </div>
 
                     <p class="text-xs text-slate-300 leading-relaxed">
-                        Technical SLA verification has passed, and initial commercial invoicing has been cleared. Signing off will promote this circuit to <strong>ACTIVE</strong> production status and create the dedicated NOC Real-time Chat Room.
+                        Technical SLA verification has passed, and initial commercial invoicing has been generated. Review the billing and circuit particulars below. If everything is verified, authorize live service; or if there is any billing discrepancy, return to the Billing department for correction.
                     </p>
 
-                    <form method="POST" action="{{ route('approvals.final-commission', $survey) }}" class="space-y-3 text-xs">
-                        @csrf
-                        <div>
-                            <label class="block font-semibold text-slate-300 uppercase mb-1">Commissioning Sign-off Remarks</label>
-                            <input type="text" name="remarks" value="Commercial & technical conditions satisfied. Authorized for live service."
-                                class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white">
+                    @if($survey->workOrder?->link?->billing)
+                        @php $b = $survey->workOrder->link->billing; @endphp
+                        <div class="p-4 bg-slate-950/70 border border-slate-800 rounded-2xl grid sm:grid-cols-4 gap-3 text-xs font-mono">
+                            <div>
+                                <div class="text-[10px] text-slate-400 uppercase">Commercial Invoice</div>
+                                <div class="text-violet-400 font-bold">{{ $b->invoice_no }}</div>
+                            </div>
+                            <div>
+                                <div class="text-[10px] text-slate-400 uppercase">Installation Charge</div>
+                                <div class="text-white font-bold">৳ {{ number_format($b->installation_charge, 2) }}</div>
+                            </div>
+                            <div>
+                                <div class="text-[10px] text-slate-400 uppercase">Monthly Rate / NTTN Cost</div>
+                                <div class="text-emerald-400 font-bold">৳ {{ number_format($b->monthly_charge, 2) }} <span class="text-[10px] text-slate-400 font-normal">/ ৳ {{ number_format($b->nttn_cost, 2) }}</span></div>
+                            </div>
+                            <div>
+                                <div class="text-[10px] text-slate-400 uppercase">Cycle Start & Due Date</div>
+                                <div class="text-slate-300">{{ $b->billing_start_date?->format('M d') }} &rarr; {{ $b->due_date?->format('M d, Y') }}</div>
+                            </div>
                         </div>
-                        <div class="text-right">
-                            <button type="submit" class="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl shadow-xl shadow-emerald-600/40 transition-all flex items-center gap-2 ml-auto">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                                <span>Sign Off Final Approval & Launch Live Circuit</span>
-                            </button>
+                    @endif
+
+                    <div class="grid md:grid-cols-2 gap-4 pt-2">
+                        <!-- Final Approval Form -->
+                        <div class="p-4 bg-emerald-950/30 border border-emerald-500/30 rounded-2xl space-y-3">
+                            <h4 class="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span>Authorize & Go Live</span>
+                            </h4>
+                            <form method="POST" action="{{ route('approvals.final-commission', $survey) }}" class="space-y-3 text-xs">
+                                @csrf
+                                <div>
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">Sign-off Remarks</label>
+                                    <input type="text" name="remarks" value="Commercial & technical conditions satisfied. Authorized for live service."
+                                        class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white">
+                                </div>
+                                <button type="submit" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                    <span>Sign Off & Launch Live Circuit</span>
+                                </button>
+                            </form>
                         </div>
-                    </form>
+
+                        <!-- Return to Billing Department Form -->
+                        <div class="p-4 bg-rose-950/20 border border-amber-500/30 rounded-2xl space-y-3">
+                            <h4 class="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                                <span>Billing Problem? Return for Correction</span>
+                            </h4>
+                            <form method="POST" action="{{ route('approvals.return-billing', $survey) }}" class="space-y-3 text-xs">
+                                @csrf
+                                <div>
+                                    <label class="block font-semibold text-slate-300 uppercase mb-1">Reason / Notes for Billing Dept *</label>
+                                    <input type="text" name="remarks" required placeholder="e.g. Monthly rate mismatch, please correct invoice..."
+                                        class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white">
+                                </div>
+                                <button type="submit" class="w-full py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl shadow-lg shadow-amber-600/30 transition-all flex items-center justify-center gap-2" onclick="return confirm('Return this circuit to Billing Department for correction?');">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+                                    <span>Return to Billing Department &rarr;</span>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
                 </div>
             @endif
 
@@ -604,7 +1138,7 @@
                             ACTIVE LIVE CIRCUIT IN PRODUCTION
                         </div>
                         <h3 class="text-xl font-extrabold text-white font-mono">{{ $survey->workOrder->link->link_id }}</h3>
-                        <div class="text-xs text-slate-400 mt-1">Circuit ID: {{ $survey->workOrder->link->circuit_id }} | Bandwidth: {{ $survey->workOrder->link->bandwidth_mbps }} Mbps</div>
+                        <div class="text-xs text-slate-400 mt-1">Circuit ID: {{ $survey->workOrder->link->circuit_id }}@if(!auth()->user()->isReseller() && $survey->workOrder->link->nttn_link_id) | NTTN Link ID: <span class="text-cyan-400 font-mono font-bold">{{ $survey->workOrder->link->nttn_link_id }}</span>@endif | Bandwidth: {{ $survey->workOrder->link->bandwidth_mbps }} Mbps</div>
                     </div>
                     <div class="flex items-center gap-3">
                         <a href="{{ route('links.chat', $survey->workOrder->link) }}" class="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg">

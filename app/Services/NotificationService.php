@@ -3,23 +3,23 @@
 namespace App\Services;
 
 use App\Models\Notification;
-use App\Models\User;
 use App\Models\Role;
+use App\Models\User;
 
 class NotificationService
 {
     /**
      * Send a notification to specific users.
      */
-    public static function notify(array $userIds, string $title, string $message, string $entityType = null, int $entityId = null): void
+    public static function notify(array $userIds, string $title, string $message, ?string $entityType = null, ?int $entityId = null): void
     {
         foreach ($userIds as $userId) {
             Notification::create([
-                'user_id'     => $userId,
-                'title'       => $title,
-                'message'     => $message,
+                'user_id' => $userId,
+                'title' => $title,
+                'message' => $message,
                 'entity_type' => $entityType,
-                'entity_id'   => $entityId,
+                'entity_id' => $entityId,
             ]);
         }
     }
@@ -27,9 +27,9 @@ class NotificationService
     /**
      * Notify all users of a given role.
      */
-    public static function notifyRole(string $roleName, string $title, string $message, string $entityType = null, int $entityId = null): void
+    public static function notifyRole(string $roleName, string $title, string $message, ?string $entityType = null, ?int $entityId = null): void
     {
-        $userIds = User::whereHas('role', fn($q) => $q->where('name', $roleName))
+        $userIds = User::whereHas('role', fn ($q) => $q->where('name', $roleName))
             ->where('is_active', true)
             ->pluck('id')
             ->toArray();
@@ -40,9 +40,9 @@ class NotificationService
     /**
      * Notify multiple roles.
      */
-    public static function notifyRoles(array $roleNames, string $title, string $message, string $entityType = null, int $entityId = null): void
+    public static function notifyRoles(array $roleNames, string $title, string $message, ?string $entityType = null, ?int $entityId = null): void
     {
-        $userIds = User::whereHas('role', fn($q) => $q->whereIn('name', $roleNames))
+        $userIds = User::whereHas('role', fn ($q) => $q->whereIn('name', $roleNames))
             ->where('is_active', true)
             ->pluck('id')
             ->toArray();
@@ -72,7 +72,7 @@ class NotificationService
 
     public static function surveyApproved(int $surveyId, string $requestNo, int $resellerId): void
     {
-        $resellerUser = User::whereHas('reseller', fn($q) => $q->where('id', $resellerId))->first();
+        $resellerUser = User::whereHas('reseller', fn ($q) => $q->where('id', $resellerId))->first();
         if ($resellerUser) {
             static::notify([$resellerUser->id],
                 "Survey Approved ✓ — {$requestNo}",
@@ -89,11 +89,23 @@ class NotificationService
 
     public static function surveyRejected(int $surveyId, string $requestNo, int $resellerId): void
     {
-        $resellerUser = User::whereHas('reseller', fn($q) => $q->where('id', $resellerId))->first();
+        $resellerUser = User::whereHas('reseller', fn ($q) => $q->where('id', $resellerId))->first();
         if ($resellerUser) {
             static::notify([$resellerUser->id],
                 "Survey Rejected — {$requestNo}",
                 "Unfortunately, your survey request {$requestNo} was rejected by MD. Please contact your account manager.",
+                'survey_request', $surveyId
+            );
+        }
+    }
+
+    public static function surveyNotFeasible(int $surveyId, string $requestNo, int $resellerId): void
+    {
+        $resellerUser = User::whereHas('reseller', fn ($q) => $q->where('id', $resellerId))->first();
+        if ($resellerUser) {
+            static::notify([$resellerUser->id],
+                "Survey Route Infeasible ⚠️ — {$requestNo}",
+                "Transmission team has assessed survey request {$requestNo} as Not Feasible. You can edit and resubmit your parameters or cancel the request.",
                 'survey_request', $surveyId
             );
         }
@@ -110,7 +122,7 @@ class NotificationService
 
     public static function linkActivated(int $linkId, string $linkCode, int $resellerId): void
     {
-        $resellerUser = User::whereHas('reseller', fn($q) => $q->where('id', $resellerId))->first();
+        $resellerUser = User::whereHas('reseller', fn ($q) => $q->where('id', $resellerId))->first();
         if ($resellerUser) {
             static::notify([$resellerUser->id],
                 "Circuit Activated 🟢 — {$linkCode}",

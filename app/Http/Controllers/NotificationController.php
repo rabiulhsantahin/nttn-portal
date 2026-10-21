@@ -19,15 +19,15 @@ class NotificationController extends Controller
             ->latest()
             ->take(30)
             ->get()
-            ->map(fn($n) => [
-                'id'          => $n->id,
-                'title'       => $n->title,
-                'message'     => $n->message,
+            ->map(fn ($n) => [
+                'id' => $n->id,
+                'title' => $n->title,
+                'message' => $n->message,
                 'entity_type' => $n->entity_type,
-                'entity_id'   => $n->entity_id,
-                'read_at'     => $n->read_at,
-                'is_read'     => ! is_null($n->read_at),
-                'created_at'  => $n->created_at->diffForHumans(),
+                'entity_id' => $n->entity_id,
+                'read_at' => $n->read_at,
+                'is_read' => ! is_null($n->read_at),
+                'created_at' => $n->created_at->diffForHumans(),
             ]);
 
         $unreadCount = Notification::where('user_id', $user->id)
@@ -36,7 +36,7 @@ class NotificationController extends Controller
 
         return response()->json([
             'notifications' => $notifications,
-            'unread_count'  => $unreadCount,
+            'unread_count' => $unreadCount,
         ]);
     }
 

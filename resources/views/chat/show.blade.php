@@ -21,7 +21,7 @@
                     </span>
                 </div>
                 <div class="text-xs text-slate-400">
-                    Customer: <strong class="text-slate-200">{{ $link->customer->name }}</strong> | Circuit: <strong class="text-cyan-400 font-mono">{{ $link->circuit_id ?? 'N/A' }}</strong> ({{ $link->bandwidth_mbps }} Mbps)
+                    Customer: <strong class="text-slate-200">{{ $link->customer->name }}</strong> | Circuit: <strong class="text-cyan-400 font-mono">{{ $link->circuit_id ?? 'N/A' }}</strong>@if(!auth()->user()->isReseller() && $link->nttn_link_id) | NTTN Link: <strong class="text-emerald-400 font-mono">{{ $link->nttn_link_id }}</strong>@endif ({{ $link->bandwidth_mbps }} Mbps)
                 </div>
             </div>
         </div>

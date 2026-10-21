@@ -39,7 +39,10 @@
                                 <div class="text-white font-bold">{{ $h->workOrder->surveyRequest->customer->name }}</div>
                             </td>
                             <td class="px-6 py-4 font-mono text-cyan-400 font-bold">
-                                {{ $h->link?->circuit_id ?? 'Pending' }}
+                                <div>{{ $h->link?->circuit_id ?? 'Pending' }}</div>
+                                @if(!auth()->user()->isReseller() && $h->link?->nttn_link_id)
+                                    <div class="text-[11px] text-emerald-400 font-normal">NTTN: {{ $h->link->nttn_link_id }}</div>
+                                @endif
                             </td>
                             <td class="px-6 py-4 font-mono text-xs">
                                 @if($h->test)

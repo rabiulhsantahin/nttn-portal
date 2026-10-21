@@ -4,20 +4,19 @@ namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
 use App\Models\Approval;
-use App\Models\Role;
+use App\Models\SurveyFeedback;
 use App\Models\SurveyRequest;
-use App\Models\User;
-use App\Models\WorkOrder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class ApprovalController extends Controller
 {
     public function index()
     {
         $pendingSurveys = SurveyRequest::where('status', SurveyRequest::STATUS_MD_APPROVAL_PENDING)
-            ->with(['customer', 'reseller', 'feedback.creator'])
+            ->whereHas('feedbacks', fn ($q) => $q->where('feasible', true))
+            ->with(['customer', 'reseller', 'feedback.creator', 'feedbacks'])
             ->latest()
             ->paginate(10);
 
@@ -35,6 +34,12 @@ class ApprovalController extends Controller
             'decision' => ['required', 'in:approve,reject,send_back'],
             'remarks' => ['nullable', 'string'],
             'assigned_to' => ['nullable', 'exists:users,id'],
+            'selected_feedback_id' => [
+                'nullable',
+                Rule::exists('survey_feedback', 'id')
+                    ->where('survey_request_id', $survey->id)
+                    ->where('feasible', true),
+            ],
             'deadline_days' => ['nullable', 'integer', 'min:1'],
         ]);
 
@@ -43,6 +48,39 @@ class ApprovalController extends Controller
         $user = Auth::user();
 
         if ($decision === 'approve') {
+            // Select feedback if chosen by MD (only feasible feedback can be approved)
+            if (! empty($validated['selected_feedback_id'])) {
+                SurveyFeedback::where('survey_request_id', $survey->id)->update(['is_selected' => false]);
+                SurveyFeedback::where('survey_request_id', $survey->id)
+                    ->where('id', $validated['selected_feedback_id'])
+                    ->where('feasible', true)
+                    ->update(['is_selected' => true]);
+                $survey->unsetRelation('feedback');
+                $survey->unsetRelation('feedbacks');
+                $survey->unsetRelation('selectedFeedback');
+            } else {
+                // Ensure at least one feasible feedback is marked is_selected
+                $activeFeasible = SurveyFeedback::where('survey_request_id', $survey->id)
+                    ->where('feasible', true)
+                    ->where('is_selected', true)
+                    ->first();
+                if (! $activeFeasible) {
+                    SurveyFeedback::where('survey_request_id', $survey->id)->update(['is_selected' => false]);
+                    SurveyFeedback::where('survey_request_id', $survey->id)
+                        ->where('feasible', true)
+                        ->orderBy('id', 'asc')
+                        ->limit(1)
+                        ->update(['is_selected' => true]);
+                    $survey->unsetRelation('feedback');
+                    $survey->unsetRelation('feedbacks');
+                    $survey->unsetRelation('selectedFeedback');
+                }
+            }
+
+            $chosenFeedback = ($survey->selectedFeedback && $survey->selectedFeedback->feasible)
+                ? $survey->selectedFeedback
+                : ($survey->feedbacks->firstWhere('feasible', true) ?? $survey->feedback);
+
             // 1. Log approval
             Approval::create([
                 'entity_type' => 'survey_request',
@@ -54,40 +92,22 @@ class ApprovalController extends Controller
                 'approved_at' => now(),
             ]);
 
-            // 2. Pick assigned engineer or default transmission user
-            $txUser = !empty($validated['assigned_to'])
-                ? User::find($validated['assigned_to'])
-                : User::whereHas('role', fn($q) => $q->where('name', Role::TRANSMISSION))->first();
-
-            $deadlineDays = $validated['deadline_days'] ?? ($survey->feedback?->expected_delivery_days ?? 7);
-            $woNo = 'WO-' . date('Y') . '-' . strtoupper(Str::random(6));
-
-            // 3. Create Work Order
-            $workOrder = WorkOrder::create([
-                'work_order_no' => $woNo,
-                'survey_request_id' => $survey->id,
-                'assigned_to' => $txUser?->id,
-                'status' => WorkOrder::STATUS_ISSUED,
-                'deadline' => now()->addDays($deadlineDays),
-                'instructions' => $remarks ?? "Execute fiber laying, splicing, and POP termination as per approved feasibility route.",
-            ]);
-
-            // 4. Update survey status
+            // 2. Transition status to MD_APPROVED (Awaiting Client/Reseller Work Order)
             $oldStatus = $survey->status;
-            $survey->update(['status' => SurveyRequest::STATUS_WORK_ORDER_ISSUED]);
+            $survey->update(['status' => SurveyRequest::STATUS_MD_APPROVED]);
 
             ActivityLog::record(
                 entityType: 'survey_request',
                 entityId: $survey->id,
-                action: 'MD_APPROVED_WORK_ORDER_ISSUED',
+                action: 'MD_FEASIBILITY_APPROVED',
                 fromStatus: $oldStatus,
-                toStatus: SurveyRequest::STATUS_WORK_ORDER_ISSUED,
-                remarks: "Approved by MD. Work Order {$woNo} issued to " . ($txUser ? $txUser->name : 'Transmission Team'),
+                toStatus: SurveyRequest::STATUS_MD_APPROVED,
+                remarks: 'Approved by MD ('.($chosenFeedback?->provider ?? 'Selected NTTN').'). Commercial feasibility forwarded to Reseller portal for Work Order issuance.',
                 userId: $user->id
             );
 
             return redirect()->route('surveys.show', $survey)
-                ->with('success', "Survey approved! Work Order {$woNo} generated successfully.");
+                ->with('success', 'Feasibility approved! The commercial quotation has been forwarded to the Reseller portal for Work Order issuance.');
         }
 
         if ($decision === 'reject') {

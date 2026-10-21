@@ -60,7 +60,7 @@
                 </div>
             </div>
             <div class="text-3xl font-extrabold text-white font-mono">{{ $metrics['total_surveys'] }}</div>
-            <div class="text-xs text-slate-400 mt-1">Lifecycle pipeline</div>
+            <div class="text-xs text-slate-400 mt-1">{{ auth()->user()->isReseller() ? 'Your survey pipeline' : 'Lifecycle pipeline' }}</div>
         </div>
 
         <!-- Active Links Card -->
@@ -72,19 +72,27 @@
                 </div>
             </div>
             <div class="text-3xl font-extrabold text-emerald-400 font-mono">{{ $metrics['active_links'] }}</div>
-            <div class="text-xs text-slate-400 mt-1">Passing live telemetry</div>
+            <div class="text-xs text-slate-400 mt-1">{{ auth()->user()->isReseller() ? 'Your active circuits' : 'Passing live telemetry' }}</div>
         </div>
 
         <!-- MD Approvals Pending -->
         <div class="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 hover:border-slate-700 transition-all shadow-lg group">
             <div class="flex items-center justify-between mb-3">
-                <span class="text-xs font-bold uppercase tracking-wider text-slate-400">MD Approvals Queue</span>
+                <span class="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    {{ auth()->user()->isReseller() ? 'Pending Approvals' : 'MD Approvals Queue' }}
+                </span>
                 <div class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center font-bold">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 </div>
             </div>
             <div class="text-3xl font-extrabold text-amber-400 font-mono">{{ $metrics['pending_approvals'] + $metrics['final_approvals'] }}</div>
-            <div class="text-xs text-slate-400 mt-1">{{ $metrics['pending_approvals'] }} Capex + {{ $metrics['final_approvals'] }} Final</div>
+            <div class="text-xs text-slate-400 mt-1">
+                @if(auth()->user()->isReseller())
+                    {{ $metrics['pending_approvals'] + $metrics['final_approvals'] }} {{ Str::plural('request', $metrics['pending_approvals'] + $metrics['final_approvals']) }} in review
+                @else
+                    {{ $metrics['pending_approvals'] }} Capex + {{ $metrics['final_approvals'] }} Final
+                @endif
+            </div>
         </div>
 
         <!-- Open Trouble Tickets -->
@@ -96,7 +104,7 @@
                 </div>
             </div>
             <div class="text-3xl font-extrabold text-rose-400 font-mono">{{ $metrics['open_tickets'] }}</div>
-            <div class="text-xs text-slate-400 mt-1">Under NOC investigation</div>
+            <div class="text-xs text-slate-400 mt-1">{{ auth()->user()->isReseller() ? 'Your open incidents' : 'Under NOC investigation' }}</div>
         </div>
     </div>
 
@@ -199,7 +207,12 @@
                                         <a href="{{ route('links.show', $link) }}" class="font-mono text-cyan-400 hover:underline font-bold">
                                             {{ $link->link_id }}
                                         </a>
-                                        <div class="text-[11px] text-slate-400 font-mono">{{ $link->circuit_id ?? 'N/A' }}</div>
+                                        <div class="text-[11px] text-slate-400 font-mono">
+                                            {{ $link->circuit_id ?? 'N/A' }}
+                                            @if(!auth()->user()->isReseller() && $link->nttn_link_id)
+                                                <span class="text-cyan-400">| {{ $link->nttn_link_id }}</span>
+                                            @endif
+                                        </div>
                                     </td>
                                     <td class="px-6 py-4 text-slate-200">
                                         {{ $link->customer->name }}

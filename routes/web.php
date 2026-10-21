@@ -12,6 +12,7 @@ use App\Http\Controllers\NocController;
 use App\Http\Controllers\ServiceRequestController;
 use App\Http\Controllers\SurveyController;
 use App\Http\Controllers\TicketController;
+use App\Http\Controllers\UserController;
 use App\Http\Controllers\WorkOrderController;
 use Illuminate\Support\Facades\Route;
 
@@ -19,7 +20,6 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
     Route::post('/login', [AuthController::class, 'login'])->name('login.post');
-    Route::post('/quick-login', [AuthController::class, 'quickLogin'])->name('login.quick');
 });
 
 // Authenticated Routes
@@ -37,6 +37,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/surveys/create', [SurveyController::class, 'create'])->name('surveys.create');
     Route::post('/surveys', [SurveyController::class, 'store'])->name('surveys.store');
     Route::get('/surveys/{survey}', [SurveyController::class, 'show'])->name('surveys.show');
+    Route::get('/surveys/{survey}/edit', [SurveyController::class, 'edit'])->name('surveys.edit');
+    Route::put('/surveys/{survey}', [SurveyController::class, 'update'])->name('surveys.update');
+    Route::post('/surveys/{survey}/cancel', [SurveyController::class, 'cancel'])->name('surveys.cancel');
+    Route::post('/surveys/{survey}/issue-work-order', [WorkOrderController::class, 'issueFromSurvey'])->name('surveys.issue-work-order');
 
     // Transmission Feasibility
     Route::post('/surveys/{survey}/start-processing', [SurveyController::class, 'startProcessing'])
@@ -52,6 +56,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/approvals', [ApprovalController::class, 'index'])->name('approvals.index');
         Route::post('/approvals/{survey}/decide', [ApprovalController::class, 'decide'])->name('approvals.decide');
         Route::post('/approvals/{survey}/final-commission', [CommissioningController::class, 'finalApprove'])->name('approvals.final-commission');
+        Route::post('/approvals/{survey}/return-billing', [CommissioningController::class, 'returnToBilling'])->name('approvals.return-billing');
     });
 
     // Work Orders
@@ -73,7 +78,7 @@ Route::middleware('auth')->group(function () {
 
     // Billing
     Route::get('/billing', [BillingController::class, 'index'])
-        ->middleware('role:billing,md')
+        ->middleware('role:billing,md,reseller')
         ->name('billing.index');
     Route::post('/billing/{survey}/process', [BillingController::class, 'process'])
         ->middleware('role:billing')
@@ -89,12 +94,14 @@ Route::middleware('auth')->group(function () {
     Route::post('/tickets', [TicketController::class, 'store'])->name('tickets.store');
     Route::get('/tickets/{ticket}', [TicketController::class, 'show'])->name('tickets.show');
     Route::post('/tickets/{ticket}/status', [TicketController::class, 'updateStatus'])->name('tickets.update-status');
+    Route::post('/tickets/{ticket}/messages', [TicketController::class, 'sendMessage'])->name('tickets.messages.send');
+    Route::post('/tickets/{ticket}/verify-up', [TicketController::class, 'verifyCustomerUp'])->name('tickets.verify-up');
 
     // Service Requests (Upgrade/Downgrade)
     Route::get('/service-requests', [ServiceRequestController::class, 'index'])->name('service-requests.index');
     Route::post('/links/{link}/service-requests', [ServiceRequestController::class, 'store'])->name('links.service-requests.store');
     Route::post('/service-requests/{serviceRequest}/decide', [ServiceRequestController::class, 'decide'])
-        ->middleware('role:md,noc')
+        ->middleware('role:billing,md,transmission,noc')
         ->name('service-requests.decide');
 
     // Link NOC Live Chat
@@ -104,4 +111,21 @@ Route::middleware('auth')->group(function () {
 
     // Activity Logs
     Route::get('/activity-logs', [ActivityLogController::class, 'index'])->name('activity-logs.index');
+
+    // Quick Role Switch (Protected to Super Admin)
+    Route::post('/quick-login', [AuthController::class, 'quickLogin'])->name('login.quick');
+
+    // Super Admin User & Role Management
+    Route::middleware('role:super_admin')->group(function () {
+        Route::get('/users', [UserController::class, 'index'])->name('users.index');
+        Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
+        Route::post('/users', [UserController::class, 'store'])->name('users.store');
+        Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
+        Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
+        Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+        Route::post('/users/{user}/login-as', [UserController::class, 'impersonate'])->name('users.impersonate');
+    });
+
+    // Exit Impersonation (Available to any active impersonated session)
+    Route::post('/users/stop-impersonate', [UserController::class, 'stopImpersonate'])->name('users.stop-impersonate');
 });

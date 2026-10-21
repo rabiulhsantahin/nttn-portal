@@ -71,4 +71,52 @@ class CommissioningController extends Controller
         return redirect()->route('links.show', $link)
             ->with('success', "Link {$link->link_id} is now officially ACTIVE! Live chat room opened.");
     }
+
+    public function returnToBilling(Request $request, SurveyRequest $survey)
+    {
+        $validated = $request->validate([
+            'remarks' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $link = $survey->workOrder?->link;
+
+        if (! $link) {
+            return back()->with('error', 'Associated link not found.');
+        }
+
+        // 1. Record rejection in Approvals
+        Approval::create([
+            'entity_type' => 'survey_request',
+            'entity_id' => $survey->id,
+            'approval_stage' => Approval::STAGE_FINAL_MD,
+            'status' => Approval::STATUS_SENT_BACK,
+            'remarks' => $validated['remarks'],
+            'approved_by' => Auth::id(),
+            'approved_at' => now(),
+        ]);
+
+        // 2. Mark Billing status as RETURNED
+        if ($link->billing) {
+            $link->billing->update([
+                'status' => 'RETURNED',
+            ]);
+        }
+
+        // 3. Revert SurveyRequest status back to BILLING_PENDING
+        $oldStatus = $survey->status;
+        $survey->update(['status' => SurveyRequest::STATUS_BILLING_PENDING]);
+
+        ActivityLog::record(
+            entityType: 'survey_request',
+            entityId: $survey->id,
+            action: 'MD_BILLING_RETURNED',
+            fromStatus: $oldStatus,
+            toStatus: SurveyRequest::STATUS_BILLING_PENDING,
+            remarks: "Returned to Billing Department by MD for correction. Note: {$validated['remarks']}",
+            userId: Auth::id()
+        );
+
+        return redirect()->route('surveys.show', $survey)
+            ->with('warning', 'Billing returned to the Billing department for correction.');
+    }
 }

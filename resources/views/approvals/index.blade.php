@@ -38,6 +38,11 @@
                 </thead>
                 <tbody class="divide-y divide-slate-800/60 font-medium">
                     @forelse($pendingSurveys as $s)
+                        @php
+                            $activeFb = ($s->selectedFeedback && $s->selectedFeedback->feasible)
+                                ? $s->selectedFeedback
+                                : ($s->feedbacks->firstWhere('feasible', true) ?? $s->feedback);
+                        @endphp
                         <tr class="hover:bg-slate-800/40 transition-colors">
                             <td class="px-6 py-4 font-mono font-bold text-blue-400">
                                 {{ $s->request_no }}
@@ -50,13 +55,13 @@
                                 {{ $s->bandwidth_mbps }} Mbps
                             </td>
                             <td class="px-6 py-4 font-mono text-slate-300">
-                                {{ $s->feedback?->fiber_distance_km ?? 'N/A' }} km
+                                {{ $activeFb?->fiber_distance_km ?? 'N/A' }} km
                             </td>
                             <td class="px-6 py-4 font-mono text-amber-400 font-bold">
-                                ৳ {{ number_format($s->feedback?->installation_cost ?? 0, 2) }}
+                                ৳ {{ number_format($activeFb?->installation_cost ?? 0, 2) }}
                             </td>
                             <td class="px-6 py-4 font-mono text-emerald-400 font-bold">
-                                ৳ {{ number_format($s->feedback?->monthly_cost ?? 0, 2) }}
+                                ৳ {{ number_format($activeFb?->monthly_cost ?? 0, 2) }}
                             </td>
                             <td class="px-6 py-4 text-right">
                                 <a href="{{ route('surveys.show', $s) }}" class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-md transition-all inline-block">
@@ -111,7 +116,10 @@
                                 <div class="text-xs text-slate-400">{{ $s->reseller->company_name }}</div>
                             </td>
                             <td class="px-6 py-4 font-mono text-cyan-400 font-bold">
-                                {{ $s->workOrder?->link?->circuit_id ?? 'Pending' }}
+                                <div>{{ $s->workOrder?->link?->circuit_id ?? 'Pending' }}</div>
+                                @if(!auth()->user()->isReseller() && $s->workOrder?->link?->nttn_link_id)
+                                    <div class="text-[11px] text-emerald-400 font-normal">NTTN: {{ $s->workOrder->link->nttn_link_id }}</div>
+                                @endif
                             </td>
                             <td class="px-6 py-4 font-mono text-violet-400">
                                 {{ $s->workOrder?->link?->billing?->invoice_no ?? 'Cleared' }}

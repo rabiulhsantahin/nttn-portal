@@ -21,6 +21,8 @@
                 <option value="NOC_TESTING" {{ request('status') === 'NOC_TESTING' ? 'selected' : '' }}>NOC Testing</option>
                 <option value="BILLING_PENDING" {{ request('status') === 'BILLING_PENDING' ? 'selected' : '' }}>Billing Pending</option>
                 <option value="FINAL_MD_APPROVAL" {{ request('status') === 'FINAL_MD_APPROVAL' ? 'selected' : '' }}>Final MD Approval</option>
+                <option value="NOT_FEASIBLE" {{ request('status') === 'NOT_FEASIBLE' ? 'selected' : '' }}>Not Feasible</option>
+                <option value="CANCELLED" {{ request('status') === 'CANCELLED' ? 'selected' : '' }}>Cancelled</option>
                 <option value="ACTIVE" {{ request('status') === 'ACTIVE' ? 'selected' : '' }}>Active</option>
             </select>
 
@@ -77,6 +79,8 @@
                                     @if($survey->status === 'ACTIVE') bg-emerald-500/10 text-emerald-400 border border-emerald-500/20
                                     @elseif(str_contains($survey->status, 'MD_APPROVAL')) bg-amber-500/10 text-amber-400 border border-amber-500/20
                                     @elseif(str_contains($survey->status, 'REJECTED')) bg-rose-500/10 text-rose-400 border border-rose-500/20
+                                    @elseif($survey->status === 'NOT_FEASIBLE') bg-rose-500/10 text-rose-400 border border-rose-500/20
+                                    @elseif($survey->status === 'CANCELLED') bg-slate-500/10 text-slate-400 border border-slate-500/20
                                     @elseif(str_contains($survey->status, 'WORK')) bg-cyan-500/10 text-cyan-400 border border-cyan-500/20
                                     @elseif(str_contains($survey->status, 'NOC')) bg-emerald-500/10 text-emerald-400 border border-emerald-500/20
                                     @elseif(str_contains($survey->status, 'BILLING')) bg-violet-500/10 text-violet-400 border border-violet-500/20

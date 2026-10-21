@@ -103,10 +103,7 @@
                 <div>
                     <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Service Type *</label>
                     <select name="service_type" required class="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500">
-                        <option value="Direct Optical Transport" {{ old('service_type') === 'Direct Optical Transport' ? 'selected' : '' }}>Direct Optical Transport</option>
-                        <option value="Dark Fiber Transmission" {{ old('service_type') === 'Dark Fiber Transmission' ? 'selected' : '' }}>Dark Fiber Transmission</option>
-                        <option value="Carrier Ethernet (L2 VPN)" {{ old('service_type') === 'Carrier Ethernet (L2 VPN)' ? 'selected' : '' }}>Carrier Ethernet (L2 VPN)</option>
-                        <option value="MPLS-IPVPN (L3)" {{ old('service_type') === 'MPLS-IPVPN (L3)' ? 'selected' : '' }}>MPLS-IPVPN (L3)</option>
+                        <option value="Data Link" {{ old('service_type', 'Data Link') === 'Data Link' ? 'selected' : '' }}>Data Link</option>
                     </select>
                 </div>
 

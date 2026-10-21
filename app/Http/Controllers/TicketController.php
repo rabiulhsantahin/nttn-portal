@@ -6,6 +6,7 @@ use App\Models\ActivityLog;
 use App\Models\Link;
 use App\Models\Role;
 use App\Models\Ticket;
+use App\Models\TicketMessage;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -21,7 +22,11 @@ class TicketController extends Controller
         $query = Ticket::with(['link.customer', 'link.reseller', 'creator', 'assignedEngineer']);
 
         if ($role === Role::RESELLER) {
-            $query->where('created_by', $user->id);
+            $resellerId = $user->reseller?->id ?? 0;
+            $query->where(function ($q) use ($user, $resellerId) {
+                $q->where('created_by', $user->id)
+                    ->orWhereHas('link', fn ($lq) => $lq->where('reseller_id', $resellerId));
+            });
         }
 
         if ($request->filled('status')) {
@@ -62,9 +67,21 @@ class TicketController extends Controller
             'type' => ['required', 'string', 'max:60'],
             'priority' => ['required', 'in:CRITICAL,HIGH,NORMAL,LOW'],
             'description' => ['required', 'string'],
+            'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:10240'], // Max 10MB image
         ]);
 
-        $ticketNo = 'TT-' . date('Y') . '-' . strtoupper(Str::random(5));
+        $link = Link::findOrFail($validated['link_id']);
+        $user = Auth::user();
+        if ($user->role->name === Role::RESELLER && $link->reseller_id !== $user->reseller?->id) {
+            abort(403, 'Unauthorized link selection.');
+        }
+
+        $ticketNo = 'TT-'.date('Y').'-'.strtoupper(Str::random(5));
+
+        $attachmentPath = null;
+        if ($request->hasFile('attachment')) {
+            $attachmentPath = $request->file('attachment')->store('ticket_attachments', 'public');
+        }
 
         $ticket = Ticket::create([
             'ticket_no' => $ticketNo,
@@ -73,7 +90,16 @@ class TicketController extends Controller
             'type' => $validated['type'],
             'priority' => $validated['priority'],
             'description' => $validated['description'],
+            'attachment_path' => $attachmentPath,
             'status' => Ticket::STATUS_OPEN,
+        ]);
+
+        // Create opening message in ticket thread
+        TicketMessage::create([
+            'ticket_id' => $ticket->id,
+            'user_id' => Auth::id(),
+            'message' => $validated['description'],
+            'attachment_path' => $attachmentPath,
         ]);
 
         ActivityLog::record(
@@ -82,7 +108,7 @@ class TicketController extends Controller
             action: 'TICKET_CREATED',
             fromStatus: null,
             toStatus: Ticket::STATUS_OPEN,
-            remarks: "Trouble ticket {$ticketNo} ({$validated['priority']}) logged: {$validated['type']}",
+            remarks: "Trouble ticket {$ticketNo} ({$validated['priority']}) logged: {$validated['type']}".($attachmentPath ? ' [With Image Attachment]' : ''),
             userId: Auth::id()
         );
 
@@ -92,8 +118,25 @@ class TicketController extends Controller
 
     public function show(Ticket $ticket)
     {
-        $ticket->load(['link.customer', 'link.reseller', 'creator', 'assignedEngineer']);
-        $engineers = User::whereHas('role', fn($q) => $q->whereIn('name', [Role::NOC, Role::TRANSMISSION]))->get();
+        $user = Auth::user();
+        if ($user->role->name === Role::RESELLER) {
+            $resellerId = $user->reseller?->id ?? 0;
+            $canAccess = ($ticket->created_by === $user->id) || ($ticket->link && $ticket->link->reseller_id === $resellerId);
+            if (! $canAccess) {
+                abort(403, 'Unauthorized access to this trouble ticket.');
+            }
+        }
+
+        $ticket->load([
+            'link.customer',
+            'link.reseller',
+            'creator',
+            'assignedEngineer',
+            'verifier',
+            'messages.user.role',
+        ]);
+
+        $engineers = User::whereHas('role', fn ($q) => $q->whereIn('name', [Role::NOC, Role::TRANSMISSION]))->get();
 
         $activities = ActivityLog::where('entity_type', 'ticket')
             ->where('entity_id', $ticket->id)
@@ -104,41 +147,176 @@ class TicketController extends Controller
         return view('tickets.show', compact('ticket', 'engineers', 'activities'));
     }
 
+    public function sendMessage(Request $request, Ticket $ticket)
+    {
+        $user = Auth::user();
+        if ($user->role->name === Role::RESELLER) {
+            $resellerId = $user->reseller?->id ?? 0;
+            $canAccess = ($ticket->created_by === $user->id) || ($ticket->link && $ticket->link->reseller_id === $resellerId);
+            if (! $canAccess) {
+                abort(403, 'Unauthorized access to this trouble ticket.');
+            }
+        }
+
+        if ($ticket->isLocked()) {
+            return back()->with('error', 'This ticket is closed and verified. It is archived in read-only mode.');
+        }
+
+        $validated = $request->validate([
+            'message' => ['nullable', 'string', 'max:2000', 'required_without:attachment'],
+            'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
+        ]);
+
+        $attachmentPath = null;
+        if ($request->hasFile('attachment')) {
+            $attachmentPath = $request->file('attachment')->store('ticket_attachments', 'public');
+        }
+
+        $messageText = $validated['message'] ?? ($attachmentPath ? 'Shared an image.' : '');
+
+        TicketMessage::create([
+            'ticket_id' => $ticket->id,
+            'user_id' => Auth::id(),
+            'message' => $messageText,
+            'attachment_path' => $attachmentPath,
+        ]);
+
+        ActivityLog::record(
+            entityType: 'ticket',
+            entityId: $ticket->id,
+            action: 'TICKET_MESSAGE_POSTED',
+            fromStatus: $ticket->status,
+            toStatus: $ticket->status,
+            remarks: Str::limit($messageText, 80).($attachmentPath ? ' [Attached Photo]' : ''),
+            userId: Auth::id()
+        );
+
+        return back()->with('success', 'Update / picture shared successfully.');
+    }
+
     public function updateStatus(Request $request, Ticket $ticket)
     {
+        if ($ticket->isLocked()) {
+            return back()->with('error', 'This ticket is closed and verified. It is archived in read-only mode and cannot be modified.');
+        }
+
+        $user = Auth::user();
+        if ($user->role->name === Role::RESELLER) {
+            $resellerId = $user->reseller?->id ?? 0;
+            $canAccess = ($ticket->created_by === $user->id) || ($ticket->link && $ticket->link->reseller_id === $resellerId);
+            if (! $canAccess) {
+                abort(403, 'Unauthorized access to this trouble ticket.');
+            }
+        }
+
+        $isReseller = $user->isReseller();
+        $allowedStatuses = $isReseller ? 'OPEN,CLOSED' : 'OPEN,WORKING,RESOLVED,CLOSED';
+
         $validated = $request->validate([
-            'status' => ['required', 'in:OPEN,WORKING,RESOLVED,CLOSED'],
+            'status' => ['required', 'in:'.$allowedStatuses],
             'assigned_to' => ['nullable', 'exists:users,id'],
             'remarks' => ['nullable', 'string'],
+            'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
         ]);
 
         $oldStatus = $ticket->status;
         $updates = ['status' => $validated['status']];
 
-        if (array_key_exists('assigned_to', $validated)) {
+        // Reseller is not allowed to re-assign engineers
+        if (! $isReseller && array_key_exists('assigned_to', $validated)) {
             $updates['assigned_to'] = $validated['assigned_to'];
         }
 
-        if ($validated['status'] === Ticket::STATUS_RESOLVED && !$ticket->resolved_at) {
+        if ($validated['status'] === Ticket::STATUS_RESOLVED && ! $ticket->resolved_at) {
             $updates['resolved_at'] = now();
         }
 
-        if ($validated['status'] === Ticket::STATUS_CLOSED && !$ticket->closed_at) {
-            $updates['closed_at'] = now();
+        if ($validated['status'] === Ticket::STATUS_CLOSED) {
+            if (! $ticket->closed_at) {
+                $updates['closed_at'] = now();
+            }
+            // If closed by reseller or customer verify requested, mark verified and lock
+            if ($isReseller || Auth::id() === $ticket->created_by || $request->boolean('verify_customer_up')) {
+                $updates['is_customer_verified'] = true;
+                $updates['verified_at'] = now();
+                $updates['verified_by'] = Auth::id();
+            }
+        }
+
+        $attachmentPath = null;
+        if ($request->hasFile('attachment')) {
+            $attachmentPath = $request->file('attachment')->store('ticket_attachments', 'public');
         }
 
         $ticket->update($updates);
 
+        // Add update remark to message thread as well
+        if ($request->filled('remarks') || $attachmentPath) {
+            TicketMessage::create([
+                'ticket_id' => $ticket->id,
+                'user_id' => Auth::id(),
+                'message' => "Status updated to {$validated['status']}".($request->filled('remarks') ? ': '.$request->remarks : ''),
+                'attachment_path' => $attachmentPath,
+            ]);
+        }
+
         ActivityLog::record(
             entityType: 'ticket',
             entityId: $ticket->id,
-            action: 'TICKET_STATUS_UPDATED',
+            action: ($isReseller && $validated['status'] === Ticket::STATUS_CLOSED) ? 'TICKET_CUSTOMER_VERIFIED' : 'TICKET_STATUS_UPDATED',
             fromStatus: $oldStatus,
             toStatus: $validated['status'],
-            remarks: $validated['remarks'] ?? "Ticket marked as {$validated['status']}",
+            remarks: ($validated['remarks'] ?? ($isReseller && $validated['status'] === Ticket::STATUS_CLOSED ? 'Customer verified UP and closed ticket.' : "Ticket marked as {$validated['status']}")).($attachmentPath ? ' [Attached Photo]' : ''),
             userId: Auth::id()
         );
 
-        return back()->with('success', "Ticket status updated to {$validated['status']}.");
+        $msg = ($isReseller && $validated['status'] === Ticket::STATUS_CLOSED)
+            ? 'Ticket verified and permanently closed.'
+            : "Ticket status updated to {$validated['status']}.";
+
+        return back()->with('success', $msg);
+    }
+
+    public function verifyCustomerUp(Request $request, Ticket $ticket)
+    {
+        $user = Auth::user();
+        if ($user->role->name === Role::RESELLER) {
+            $resellerId = $user->reseller?->id ?? 0;
+            $canAccess = ($ticket->created_by === $user->id) || ($ticket->link && $ticket->link->reseller_id === $resellerId);
+            if (! $canAccess) {
+                abort(403, 'Unauthorized access to this trouble ticket.');
+            }
+        }
+
+        if ($ticket->is_customer_verified) {
+            return back()->with('info', 'Ticket is already verified and locked.');
+        }
+
+        $ticket->update([
+            'status' => Ticket::STATUS_CLOSED,
+            'is_customer_verified' => true,
+            'verified_at' => now(),
+            'verified_by' => Auth::id(),
+            'closed_at' => $ticket->closed_at ?? now(),
+        ]);
+
+        TicketMessage::create([
+            'ticket_id' => $ticket->id,
+            'user_id' => Auth::id(),
+            'message' => '✅ Customer confirmed connectivity is UP & verified ticket resolution. Ticket permanently closed and locked.',
+            'attachment_path' => null,
+        ]);
+
+        ActivityLog::record(
+            entityType: 'ticket',
+            entityId: $ticket->id,
+            action: 'TICKET_CUSTOMER_VERIFIED',
+            fromStatus: $ticket->status,
+            toStatus: Ticket::STATUS_CLOSED,
+            remarks: 'Customer confirmed circuit is UP and verified resolution. Ticket permanently closed and archived.',
+            userId: Auth::id()
+        );
+
+        return back()->with('success', 'Customer verified circuit is UP! Ticket is now permanently closed and archived.');
     }
 }

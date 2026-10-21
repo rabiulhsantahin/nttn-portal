@@ -76,17 +76,25 @@
                             </td>
                             <td class="px-6 py-4 font-mono text-xs">
                                 <span class="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold
-                                    @if($t->status === 'RESOLVED') bg-emerald-500/10 text-emerald-400 border border-emerald-500/20
+                                    @if($t->is_customer_verified) bg-emerald-500/10 text-emerald-400 border border-emerald-500/30
+                                    @elseif($t->status === 'RESOLVED') bg-emerald-500/10 text-emerald-400 border border-emerald-500/20
                                     @elseif($t->status === 'CLOSED') bg-slate-700/50 text-slate-400 border border-slate-600/30
                                     @elseif($t->status === 'WORKING') bg-cyan-500/10 text-cyan-400 border border-cyan-500/20
                                     @else bg-rose-500/10 text-rose-400 border border-rose-500/20 @endif">
-                                    {{ $t->status }}
+                                    {{ $t->is_customer_verified ? 'CLOSED ✓' : $t->status }}
                                 </span>
                             </td>
                             <td class="px-6 py-4 text-right">
-                                <a href="{{ route('tickets.show', $t) }}" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-white transition-colors">
-                                    Handle &rarr;
-                                </a>
+                                @if($t->isLocked())
+                                    <a href="{{ route('tickets.show', $t) }}" class="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-xs font-semibold text-slate-400 hover:text-white transition-colors inline-flex items-center gap-1.5">
+                                        <span>🔒</span>
+                                        <span>View History &rarr;</span>
+                                    </a>
+                                @else
+                                    <a href="{{ route('tickets.show', $t) }}" class="px-3.5 py-1.5 rounded-xl bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 text-xs font-semibold transition-colors inline-block">
+                                        Handle &rarr;
+                                    </a>
+                                @endif
                             </td>
                         </tr>
                     @empty

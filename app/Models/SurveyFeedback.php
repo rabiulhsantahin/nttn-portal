@@ -16,12 +16,15 @@ class SurveyFeedback extends Model
         'route',
         'fiber_distance_km',
         'nearest_pop',
+        'pop_latitude',
+        'pop_longitude',
         'port',
         'vlan',
         'installation_cost',
         'monthly_cost',
         'expected_delivery_days',
         'feedback',
+        'is_selected',
         'created_by',
     ];
 
@@ -30,9 +33,12 @@ class SurveyFeedback extends Model
         return [
             'feasible' => 'boolean',
             'fiber_distance_km' => 'decimal:3',
+            'pop_latitude' => 'decimal:7',
+            'pop_longitude' => 'decimal:7',
             'installation_cost' => 'decimal:2',
             'monthly_cost' => 'decimal:2',
             'expected_delivery_days' => 'integer',
+            'is_selected' => 'boolean',
         ];
     }
 
