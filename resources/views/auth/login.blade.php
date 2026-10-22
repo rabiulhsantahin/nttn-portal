@@ -53,13 +53,13 @@
                     @csrf
                     <div>
                         <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Email Address</label>
-                        <input type="email" name="email" value="{{ old('email', 'admin@nttn.test') }}" required
+                        <input type="email" name="email" value="{{ old('email') }}" placeholder="admin@nttn.test" required
                             class="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700/80 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                     </div>
 
                     <div>
                         <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Password</label>
-                        <input type="password" name="password" value="password" required
+                        <input type="password" name="password" required placeholder="••••••••" autocomplete="current-password"
                             class="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700/80 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                     </div>
 
@@ -68,7 +68,6 @@
                             <input type="checkbox" name="remember" class="rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0">
                             <span>Keep me logged in</span>
                         </label>
-                        <span class="font-mono text-slate-500">Default: password</span>
                     </div>
 
                     <button type="submit" class="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold rounded-xl text-sm shadow-lg shadow-blue-600/30 transition-all hover:shadow-blue-600/50">
