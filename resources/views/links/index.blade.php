@@ -40,9 +40,16 @@
                     @forelse($links as $link)
                         <tr class="hover:bg-slate-800/40 transition-colors">
                             <td class="px-6 py-4 font-mono font-bold text-cyan-400">
-                                <a href="{{ route('links.show', $link) }}" class="hover:underline">
-                                    {{ $link->link_id }}
-                                </a>
+                                <div class="flex items-center gap-1.5 flex-wrap">
+                                    <a href="{{ route('links.show', $link) }}" class="hover:underline">
+                                        {{ $link->link_id }}
+                                    </a>
+                                    @if($link->is_legacy)
+                                        <span class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                            LEGACY
+                                        </span>
+                                    @endif
+                                </div>
                             </td>
                             <td class="px-6 py-4 font-mono text-slate-300">
                                 <div>{{ $link->circuit_id ?? 'Provisioning' }}</div>

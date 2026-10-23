@@ -22,6 +22,8 @@ class Billing extends Model
         'due_date',
         'invoice_no',
         'status',
+        'is_legacy',
+        'notes',
         'completed_by',
     ];
 
@@ -33,6 +35,7 @@ class Billing extends Model
             'nttn_cost' => 'decimal:2',
             'billing_start_date' => 'date',
             'due_date' => 'date',
+            'is_legacy' => 'boolean',
         ];
     }
 
@@ -44,5 +47,13 @@ class Billing extends Model
     public function completedByUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'completed_by');
+    }
+
+    public function getUnitPriceAttribute(): float
+    {
+        $bandwidth = (int) ($this->link?->bandwidth_mbps ?? 0);
+        $monthly = (float) $this->monthly_charge;
+
+        return $bandwidth > 0 ? round($monthly / $bandwidth, 2) : 0.0;
     }
 }

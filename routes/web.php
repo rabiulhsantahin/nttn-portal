@@ -57,6 +57,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/approvals/{survey}/decide', [ApprovalController::class, 'decide'])->name('approvals.decide');
         Route::post('/approvals/{survey}/final-commission', [CommissioningController::class, 'finalApprove'])->name('approvals.final-commission');
         Route::post('/approvals/{survey}/return-billing', [CommissioningController::class, 'returnToBilling'])->name('approvals.return-billing');
+        Route::post('/approvals/legacy/{link}/decide', [ApprovalController::class, 'decideLegacy'])->name('approvals.legacy.decide');
+        Route::post('/approvals/rate-revisions/{revision}/decide', [ApprovalController::class, 'decideRateRevision'])->name('approvals.rate-revisions.decide');
     });
 
     // Work Orders
@@ -80,6 +82,18 @@ Route::middleware('auth')->group(function () {
     Route::get('/billing', [BillingController::class, 'index'])
         ->middleware('role:billing,md,reseller')
         ->name('billing.index');
+    Route::get('/billing/legacy/create', [BillingController::class, 'createLegacy'])
+        ->middleware('role:billing,md')
+        ->name('billing.legacy.create');
+    Route::post('/billing/legacy', [BillingController::class, 'storeLegacy'])
+        ->middleware('role:billing,md')
+        ->name('billing.legacy.store');
+    Route::get('/billing/links/{link}/edit-rate', [BillingController::class, 'editRate'])
+        ->middleware('role:billing,md')
+        ->name('billing.links.edit-rate');
+    Route::post('/billing/links/{link}/revise-rate', [BillingController::class, 'submitRateRevision'])
+        ->middleware('role:billing,md')
+        ->name('billing.links.revise-rate');
     Route::post('/billing/{survey}/process', [BillingController::class, 'process'])
         ->middleware('role:billing')
         ->name('billing.process');

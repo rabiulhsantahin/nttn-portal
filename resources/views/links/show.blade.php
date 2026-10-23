@@ -8,6 +8,11 @@
         <div>
             <div class="flex items-center gap-3">
                 <h2 class="text-3xl font-extrabold text-white font-mono">{{ $link->link_id }}</h2>
+                @if($link->is_legacy)
+                    <span class="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        LEGACY CIRCUIT
+                    </span>
+                @endif
                 <span class="px-3 py-1 rounded-full text-xs font-mono font-bold
                     @if($link->status === 'ACTIVE') bg-emerald-500/10 text-emerald-400 border border-emerald-500/20
                     @elseif($link->status === 'SUSPENDED') bg-rose-500/10 text-rose-400 border border-rose-500/20
@@ -19,6 +24,9 @@
                 <span>Circuit ID: <strong class="text-cyan-400">{{ $link->circuit_id ?? 'N/A' }}</strong></span>
                 @if(!auth()->user()->isReseller() && $link->nttn_link_id)
                     <span>NTTN Link ID: <strong class="text-emerald-400">{{ $link->nttn_link_id }}</strong></span>
+                @endif
+                @if($link->md_approval_ref)
+                    <span>MD Approval Memo: <strong class="text-amber-300">{{ $link->md_approval_ref }}</strong></span>
                 @endif
                 <span>Carrier: <strong class="text-slate-200">{{ $link->nttn_provider ?? 'Direct Ring' }}</strong></span>
                 <span>Customer: <strong class="text-slate-200">{{ $link->customer->name }}</strong></span>
@@ -64,6 +72,19 @@
                 ৳ {{ number_format($link->billing?->monthly_charge ?? 0, 0) }}
             </div>
             <div class="text-[11px] text-slate-500 mt-1">Invoice: {{ $link->billing?->invoice_no ?? 'Active' }}</div>
+            @if(!auth()->user()->isReseller())
+                <div class="mt-2 flex flex-wrap items-center gap-2">
+                    <a href="{{ route('billing.links.edit-rate', $link) }}" class="inline-flex items-center gap-1 text-[11px] text-amber-300 hover:text-amber-200 font-bold hover:underline">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        <span>Edit Rate</span>
+                    </a>
+                    @if($link->pendingRateRevision)
+                        <span class="text-[10px] text-amber-300 font-mono font-bold bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30">
+                            Pending: ৳ {{ number_format($link->pendingRateRevision->new_monthly_charge, 0) }}
+                        </span>
+                    @endif
+                </div>
+            @endif
         </div>
     </div>
 

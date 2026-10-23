@@ -21,6 +21,10 @@ class Approval extends Model
 
     public const STAGE_SERVICE_REQUEST = 'SERVICE_REQUEST';
 
+    public const STAGE_MD_LEGACY_BILLING = 'MD_LEGACY_BILLING';
+
+    public const STAGE_MD_RATE_REVISION = 'MD_RATE_REVISION';
+
     protected $fillable = [
         'entity_type',
         'entity_id',

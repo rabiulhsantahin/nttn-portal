@@ -30,6 +30,10 @@ class Link extends Model
         'vlan',
         'port',
         'status',
+        'is_legacy',
+        'md_approval_ref',
+        'md_approval_doc',
+        'legacy_notes',
         'activation_date',
     ];
 
@@ -38,7 +42,13 @@ class Link extends Model
         return [
             'bandwidth_mbps' => 'integer',
             'activation_date' => 'date',
+            'is_legacy' => 'boolean',
         ];
+    }
+
+    public function isLegacy(): bool
+    {
+        return (bool) $this->is_legacy;
     }
 
     public function customer(): BelongsTo
@@ -76,6 +86,21 @@ class Link extends Model
         return $this->hasMany(ServiceRequest::class);
     }
 
+    public function approvals(): HasMany
+    {
+        return $this->hasMany(Approval::class, 'entity_id')->where('entity_type', 'link');
+    }
+
+    public function rateRevisions(): HasMany
+    {
+        return $this->hasMany(BillingRateRevision::class);
+    }
+
+    public function pendingRateRevision(): HasOne
+    {
+        return $this->hasOne(BillingRateRevision::class)->where('status', BillingRateRevision::STATUS_PENDING)->latestOfMany();
+    }
+
     public function canBeDiscontinued(): bool
     {
         $activationDate = $this->activation_date ?? $this->created_at;
@@ -91,5 +116,13 @@ class Link extends Model
         $activationDate = $this->activation_date ?? $this->created_at;
 
         return $activationDate ? $activationDate->copy()->addMonths(3) : null;
+    }
+
+    public function getUnitPriceAttribute(): float
+    {
+        $bandwidth = (int) $this->bandwidth_mbps;
+        $monthly = (float) ($this->billing?->monthly_charge ?? 0);
+
+        return $bandwidth > 0 ? round($monthly / $bandwidth, 2) : 0.0;
     }
 }
