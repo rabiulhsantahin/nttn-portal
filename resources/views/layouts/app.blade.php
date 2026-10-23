@@ -1,10 +1,28 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<html lang="en" class="h-full dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title ?? 'NTTN Service Portal' }} — Telecommunications Network Management</title>
+    <!-- Instant Theme Initializer to prevent flashing -->
+    <script>
+        (function() {
+            try {
+                var savedTheme = localStorage.getItem('theme');
+                var useDark = savedTheme ? (savedTheme === 'dark') : true;
+                if (useDark) {
+                    document.documentElement.classList.add('dark');
+                    document.documentElement.classList.remove('light');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                    document.documentElement.classList.add('light');
+                }
+            } catch (e) {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -43,6 +61,12 @@
     </script>
     <style>
         body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        
+        /* Smooth transitions for theme switching */
+        body, aside, header, main, div, nav, table, th, td, input, select, textarea, button {
+            transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+        }
+
         .glass-panel {
             background: rgba(15, 23, 42, 0.75);
             backdrop-filter: blur(12px);
@@ -51,11 +75,275 @@
         .glow-brand {
             box-shadow: 0 0 25px -5px rgba(59, 130, 246, 0.3);
         }
-        /* Custom scrollbar */
+
+        /* Custom scrollbar in dark mode */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #0b0f19; }
         ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #334155; }
+
+        /* ========================================================
+           LIGHT THEME DEFINITIONS (Applied when html is not .dark)
+           ======================================================== */
+        html:not(.dark) {
+            color-scheme: light;
+        }
+
+        html:not(.dark) body {
+            background-color: #f8fafc !important;
+            background-image: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%) !important;
+            color: #0f172a !important;
+        }
+
+        /* Sidebar in Light Mode */
+        html:not(.dark) aside {
+            background-color: #ffffff !important;
+            border-color: #e2e8f0 !important;
+            box-shadow: 2px 0 8px -2px rgba(0, 0, 0, 0.04) !important;
+        }
+        html:not(.dark) aside > div:first-child {
+            background-color: #f8fafc !important;
+            border-color: #e2e8f0 !important;
+        }
+        html:not(.dark) aside a .bg-clip-text {
+            background: linear-gradient(to right, #0f172a, #334155) !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+        }
+        html:not(.dark) aside .bg-slate-900\/60,
+        html:not(.dark) aside .bg-slate-950\/60,
+        html:not(.dark) aside .bg-slate-950\/40 {
+            background-color: #f8fafc !important;
+            border-color: #e2e8f0 !important;
+        }
+        html:not(.dark) aside nav a:not([class*="bg-blue-600"]) {
+            color: #475569 !important;
+        }
+        html:not(.dark) aside nav a:not([class*="bg-blue-600"]):hover {
+            background-color: #f1f5f9 !important;
+            color: #0f172a !important;
+        }
+        html:not(.dark) aside nav div[class*="text-slate-500"] {
+            color: #94a3b8 !important;
+        }
+        html:not(.dark) aside .text-slate-200 {
+            color: #0f172a !important;
+        }
+        html:not(.dark) aside .text-slate-400 {
+            color: #64748b !important;
+        }
+
+        /* Topbar Header in Light Mode */
+        html:not(.dark) header {
+            background-color: rgba(255, 255, 255, 0.9) !important;
+            border-color: #e2e8f0 !important;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.03) !important;
+        }
+        html:not(.dark) header h1 {
+            color: #0f172a !important;
+        }
+
+        /* Quick Switcher */
+        html:not(.dark) header [class*="bg-slate-900\/90"] {
+            background-color: #f1f5f9 !important;
+            border-color: #cbd5e1 !important;
+        }
+        html:not(.dark) header [class*="bg-slate-900\/90"] button:not([class*="bg-"]) {
+            color: #475569 !important;
+        }
+        html:not(.dark) header [class*="bg-slate-900\/90"] button:not([class*="bg-"]):hover {
+            background-color: #e2e8f0 !important;
+            color: #0f172a !important;
+        }
+
+        /* Theme Toggle Button */
+        .theme-toggle-btn {
+            background-color: rgba(30, 41, 59, 0.8);
+            border-color: rgba(51, 65, 85, 0.8);
+            color: #cbd5e1;
+        }
+        .theme-toggle-btn:hover {
+            background-color: rgba(51, 65, 85, 0.95);
+            color: #ffffff;
+        }
+        html:not(.dark) .theme-toggle-btn {
+            background-color: #ffffff !important;
+            border-color: #cbd5e1 !important;
+            color: #334155 !important;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+        }
+        html:not(.dark) .theme-toggle-btn:hover {
+            background-color: #f8fafc !important;
+            color: #0f172a !important;
+        }
+
+        /* Panels & Cards in Light Mode */
+        html:not(.dark) .glass-panel {
+            background: rgba(255, 255, 255, 0.96) !important;
+            border-color: #e2e8f0 !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05) !important;
+        }
+
+        html:not(.dark) [class*="bg-slate-900"],
+        html:not(.dark) [class*="bg-slate-950"]:not(body):not(aside) {
+            background-color: #ffffff !important;
+        }
+
+        html:not(.dark) [class*="border-slate-800"],
+        html:not(.dark) [class*="border-slate-700"]:not(button):not(input):not(select):not(textarea) {
+            border-color: #e2e8f0 !important;
+        }
+
+        html:not(.dark) .rounded-2xl.border,
+        html:not(.dark) .rounded-3xl.border,
+        html:not(.dark) .rounded-xl.border {
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+        }
+
+        /* Hero / Welcome Banner */
+        html:not(.dark) [class*="from-blue-950"] {
+            background-image: linear-gradient(to right, #eff6ff 0%, #e0e7ff 50%, #ffffff 100%) !important;
+            border-color: #bfdbfe !important;
+            box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.08) !important;
+        }
+        html:not(.dark) [class*="from-blue-950"] h2 {
+            color: #1e3a8a !important;
+        }
+        html:not(.dark) [class*="from-blue-950"] p {
+            color: #334155 !important;
+        }
+        html:not(.dark) [class*="from-blue-950"] [class*="bg-blue-500\/10"] {
+            background-color: rgba(59, 130, 246, 0.15) !important;
+            border-color: rgba(59, 130, 246, 0.3) !important;
+            color: #1d4ed8 !important;
+        }
+
+        /* Text Overrides in Light Mode */
+        html:not(.dark) .text-white:not(button):not(a[class*="bg-"]):not(span[class*="bg-"]) {
+            color: #0f172a !important;
+        }
+        html:not(.dark) .text-slate-100 { color: #1e293b !important; }
+        html:not(.dark) .text-slate-200 { color: #334155 !important; }
+        html:not(.dark) .text-slate-300 { color: #475569 !important; }
+        html:not(.dark) .text-slate-400 { color: #64748b !important; }
+        html:not(.dark) .text-slate-500 { color: #64748b !important; }
+
+        /* Preserve white text inside solid colored buttons & badges */
+        html:not(.dark) button[class*="bg-blue-"],
+        html:not(.dark) a[class*="bg-blue-"],
+        html:not(.dark) button[class*="bg-amber-"],
+        html:not(.dark) a[class*="bg-amber-"],
+        html:not(.dark) button[class*="bg-emerald-"],
+        html:not(.dark) a[class*="bg-emerald-"],
+        html:not(.dark) button[class*="bg-cyan-"],
+        html:not(.dark) a[class*="bg-cyan-"],
+        html:not(.dark) button[class*="bg-purple-"],
+        html:not(.dark) a[class*="bg-purple-"],
+        html:not(.dark) button[class*="bg-rose-"],
+        html:not(.dark) a[class*="bg-rose-"],
+        html:not(.dark) button[class*="bg-gradient-"],
+        html:not(.dark) a[class*="bg-gradient-"],
+        html:not(.dark) aside nav a[class*="bg-blue-600"] {
+            color: #ffffff !important;
+        }
+        html:not(.dark) button[class*="bg-blue-"] *,
+        html:not(.dark) a[class*="bg-blue-"] *,
+        html:not(.dark) button[class*="bg-amber-"] *,
+        html:not(.dark) a[class*="bg-amber-"] *,
+        html:not(.dark) button[class*="bg-emerald-"] *,
+        html:not(.dark) a[class*="bg-emerald-"] *,
+        html:not(.dark) button[class*="bg-cyan-"] *,
+        html:not(.dark) a[class*="bg-cyan-"] *,
+        html:not(.dark) button[class*="bg-purple-"] *,
+        html:not(.dark) a[class*="bg-purple-"] *,
+        html:not(.dark) button[class*="bg-rose-"] *,
+        html:not(.dark) a[class*="bg-rose-"] *,
+        html:not(.dark) button[class*="bg-gradient-"] *,
+        html:not(.dark) a[class*="bg-gradient-"] *,
+        html:not(.dark) aside nav a[class*="bg-blue-600"] * {
+            color: #ffffff !important;
+        }
+
+        /* Light Mode Secondary action buttons */
+        html:not(.dark) a[class*="bg-slate-800"],
+        html:not(.dark) button[class*="bg-slate-800"] {
+            background-color: #f1f5f9 !important;
+            color: #0f172a !important;
+            border: 1px solid #cbd5e1 !important;
+        }
+        html:not(.dark) a[class*="bg-slate-800"]:hover,
+        html:not(.dark) button[class*="bg-slate-800"]:hover {
+            background-color: #e2e8f0 !important;
+        }
+
+        /* Status Colors - High Contrast Enhancement for Light Mode */
+        html:not(.dark) .text-emerald-400 { color: #059669 !important; }
+        html:not(.dark) .text-blue-400 { color: #2563eb !important; }
+        html:not(.dark) .text-cyan-400 { color: #0891b2 !important; }
+        html:not(.dark) .text-amber-400 { color: #d97706 !important; }
+        html:not(.dark) .text-purple-400 { color: #7c3aed !important; }
+        html:not(.dark) .text-rose-400 { color: #e11d48 !important; }
+
+        html:not(.dark) .border-emerald-500\/20 { border-color: rgba(16, 185, 129, 0.35) !important; }
+        html:not(.dark) .border-blue-500\/20 { border-color: rgba(59, 130, 246, 0.35) !important; }
+        html:not(.dark) .border-cyan-500\/20 { border-color: rgba(6, 182, 212, 0.35) !important; }
+        html:not(.dark) .border-amber-500\/20 { border-color: rgba(245, 158, 11, 0.35) !important; }
+        html:not(.dark) .border-purple-500\/20 { border-color: rgba(139, 92, 246, 0.35) !important; }
+        html:not(.dark) .border-rose-500\/20 { border-color: rgba(244, 63, 94, 0.35) !important; }
+
+        /* Tables in Light Mode */
+        html:not(.dark) table {
+            background-color: #ffffff !important;
+        }
+        html:not(.dark) table thead,
+        html:not(.dark) table thead tr,
+        html:not(.dark) table thead th {
+            background-color: #f1f5f9 !important;
+            color: #475569 !important;
+            border-color: #e2e8f0 !important;
+        }
+        html:not(.dark) table tbody tr {
+            border-color: #f1f5f9 !important;
+            color: #334155 !important;
+        }
+        html:not(.dark) table tbody tr:hover {
+            background-color: #f8fafc !important;
+        }
+        html:not(.dark) table td {
+            border-color: #e2e8f0 !important;
+        }
+
+        /* Form Inputs & Selects in Light Mode */
+        html:not(.dark) input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="hidden"]),
+        html:not(.dark) select,
+        html:not(.dark) textarea {
+            background-color: #ffffff !important;
+            border-color: #cbd5e1 !important;
+            color: #0f172a !important;
+        }
+        html:not(.dark) select option {
+            background-color: #ffffff !important;
+            color: #0f172a !important;
+        }
+        html:not(.dark) input::placeholder,
+        html:not(.dark) textarea::placeholder {
+            color: #94a3b8 !important;
+        }
+        html:not(.dark) input:focus,
+        html:not(.dark) select:focus,
+        html:not(.dark) textarea:focus {
+            border-color: #3b82f6 !important;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15) !important;
+        }
+        html:not(.dark) label {
+            color: #475569 !important;
+        }
+
+        /* Light Theme Scrollbars */
+        html:not(.dark) ::-webkit-scrollbar { width: 6px; height: 6px; }
+        html:not(.dark) ::-webkit-scrollbar-track { background: #f1f5f9; }
+        html:not(.dark) ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        html:not(.dark) ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>
 </head>
 <body class="h-full flex flex-col bg-gradient-to-br from-slate-950 via-slate-900 to-[#0a0e1a] antialiased text-slate-100">
@@ -228,44 +516,66 @@
                     <h1 class="text-lg font-bold text-white tracking-tight">{{ $header ?? 'NTTN Operations' }}</h1>
                 </div>
 
-                @if(auth()->user()->isSuperAdmin() || session()->has('impersonator_id'))
-                <!-- Quick Role Switcher Bar for Super Admin -->
                 <div class="flex items-center gap-3">
-                    <span class="text-xs text-purple-300 font-mono hidden md:inline">Admin Switcher:</span>
-                    <div class="flex items-center gap-1.5 bg-slate-900/90 border border-purple-500/30 p-1 rounded-xl shadow-inner">
-                        <form method="POST" action="{{ route('login.quick') }}">
-                            @csrf
-                            <input type="hidden" name="email" value="admin@nttn.test">
-                            <button type="submit" title="Switch to Super Admin" class="px-2.5 py-1 text-xs rounded-lg font-medium transition-colors {{ auth()->user()->isSuperAdmin() && !session()->has('impersonator_id') ? 'bg-purple-600 text-white font-bold' : 'text-slate-400 hover:text-white hover:bg-slate-800' }}">Admin</button>
-                        </form>
-                        <form method="POST" action="{{ route('login.quick') }}">
-                            @csrf
-                            <input type="hidden" name="email" value="md@nttn.test">
-                            <button type="submit" title="Switch to MD" class="px-2.5 py-1 text-xs rounded-lg font-medium transition-colors {{ auth()->user()->isMd() ? 'bg-amber-600 text-white font-bold' : 'text-slate-400 hover:text-white hover:bg-slate-800' }}">MD</button>
-                        </form>
-                        <form method="POST" action="{{ route('login.quick') }}">
-                            @csrf
-                            <input type="hidden" name="email" value="reseller@isp.test">
-                            <button type="submit" title="Switch to Reseller (ISP)" class="px-2.5 py-1 text-xs rounded-lg font-medium transition-colors {{ auth()->user()->isReseller() ? 'bg-blue-600 text-white font-bold' : 'text-slate-400 hover:text-white hover:bg-slate-800' }}">Reseller</button>
-                        </form>
-                        <form method="POST" action="{{ route('login.quick') }}">
-                            @csrf
-                            <input type="hidden" name="email" value="tx@nttn.test">
-                            <button type="submit" title="Switch to Transmission" class="px-2.5 py-1 text-xs rounded-lg font-medium transition-colors {{ auth()->user()->isTransmission() ? 'bg-cyan-600 text-white font-bold' : 'text-slate-400 hover:text-white hover:bg-slate-800' }}">Tx</button>
-                        </form>
-                        <form method="POST" action="{{ route('login.quick') }}">
-                            @csrf
-                            <input type="hidden" name="email" value="noc@nttn.test">
-                            <button type="submit" title="Switch to NOC" class="px-2.5 py-1 text-xs rounded-lg font-medium transition-colors {{ auth()->user()->isNoc() ? 'bg-emerald-600 text-white font-bold' : 'text-slate-400 hover:text-white hover:bg-slate-800' }}">NOC</button>
-                        </form>
-                        <form method="POST" action="{{ route('login.quick') }}">
-                            @csrf
-                            <input type="hidden" name="email" value="billing@nttn.test">
-                            <button type="submit" title="Switch to Billing" class="px-2.5 py-1 text-xs rounded-lg font-medium transition-colors {{ auth()->user()->isBilling() ? 'bg-rose-600 text-white font-bold' : 'text-slate-400 hover:text-white hover:bg-slate-800' }}">Billing</button>
-                        </form>
+                    <!-- Light / Dark Theme Switcher Button -->
+                    <button id="themeToggleBtn" type="button" onclick="toggleTheme()" 
+                        class="theme-toggle-btn flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-pointer shadow-sm transition-all duration-200"
+                        title="Switch between Light and Dark mode" aria-label="Toggle theme">
+                        <!-- Sun Icon (shown in dark mode, click switches to light) -->
+                        <span class="theme-icon-sun hidden items-center gap-1.5 text-amber-400">
+                            <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+                            </svg>
+                            <span class="text-slate-300 font-mono text-[11px] hidden sm:inline">Light</span>
+                        </span>
+                        <!-- Moon Icon (shown in light mode, click switches to dark) -->
+                        <span class="theme-icon-moon flex items-center gap-1.5 text-indigo-600">
+                            <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+                            </svg>
+                            <span class="text-slate-700 font-mono text-[11px] hidden sm:inline">Dark</span>
+                        </span>
+                    </button>
+
+                    @if(auth()->user()->isSuperAdmin() || session()->has('impersonator_id'))
+                    <!-- Quick Role Switcher Bar for Super Admin -->
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-purple-300 font-mono hidden md:inline">Admin Switcher:</span>
+                        <div class="flex items-center gap-1.5 bg-slate-900/90 border border-purple-500/30 p-1 rounded-xl shadow-inner">
+                            <form method="POST" action="{{ route('login.quick') }}">
+                                @csrf
+                                <input type="hidden" name="email" value="admin@nttn.test">
+                                <button type="submit" title="Switch to Super Admin" class="px-2.5 py-1 text-xs rounded-lg font-medium transition-colors {{ auth()->user()->isSuperAdmin() && !session()->has('impersonator_id') ? 'bg-purple-600 text-white font-bold' : 'text-slate-400 hover:text-white hover:bg-slate-800' }}">Admin</button>
+                            </form>
+                            <form method="POST" action="{{ route('login.quick') }}">
+                                @csrf
+                                <input type="hidden" name="email" value="md@nttn.test">
+                                <button type="submit" title="Switch to MD" class="px-2.5 py-1 text-xs rounded-lg font-medium transition-colors {{ auth()->user()->isMd() ? 'bg-amber-600 text-white font-bold' : 'text-slate-400 hover:text-white hover:bg-slate-800' }}">MD</button>
+                            </form>
+                            <form method="POST" action="{{ route('login.quick') }}">
+                                @csrf
+                                <input type="hidden" name="email" value="reseller@isp.test">
+                                <button type="submit" title="Switch to Reseller (ISP)" class="px-2.5 py-1 text-xs rounded-lg font-medium transition-colors {{ auth()->user()->isReseller() ? 'bg-blue-600 text-white font-bold' : 'text-slate-400 hover:text-white hover:bg-slate-800' }}">Reseller</button>
+                            </form>
+                            <form method="POST" action="{{ route('login.quick') }}">
+                                @csrf
+                                <input type="hidden" name="email" value="tx@nttn.test">
+                                <button type="submit" title="Switch to Transmission" class="px-2.5 py-1 text-xs rounded-lg font-medium transition-colors {{ auth()->user()->isTransmission() ? 'bg-cyan-600 text-white font-bold' : 'text-slate-400 hover:text-white hover:bg-slate-800' }}">Tx</button>
+                            </form>
+                            <form method="POST" action="{{ route('login.quick') }}">
+                                @csrf
+                                <input type="hidden" name="email" value="noc@nttn.test">
+                                <button type="submit" title="Switch to NOC" class="px-2.5 py-1 text-xs rounded-lg font-medium transition-colors {{ auth()->user()->isNoc() ? 'bg-emerald-600 text-white font-bold' : 'text-slate-400 hover:text-white hover:bg-slate-800' }}">NOC</button>
+                            </form>
+                            <form method="POST" action="{{ route('login.quick') }}">
+                                @csrf
+                                <input type="hidden" name="email" value="billing@nttn.test">
+                                <button type="submit" title="Switch to Billing" class="px-2.5 py-1 text-xs rounded-lg font-medium transition-colors {{ auth()->user()->isBilling() ? 'bg-rose-600 text-white font-bold' : 'text-slate-400 hover:text-white hover:bg-slate-800' }}">Billing</button>
+                            </form>
+                        </div>
                     </div>
+                    @endif
                 </div>
-                @endif
             </header>
 
             <!-- Notification Flashes -->
@@ -320,5 +630,69 @@
     </div>
 
     @stack('scripts')
+
+    <script>
+        function updateThemeUI(isDark) {
+            var sunIcons = document.querySelectorAll('.theme-icon-sun');
+            var moonIcons = document.querySelectorAll('.theme-icon-moon');
+            var toggleBtns = document.querySelectorAll('.theme-toggle-btn');
+            
+            sunIcons.forEach(function(el) {
+                if (isDark) {
+                    el.classList.remove('hidden');
+                    el.classList.add('flex');
+                } else {
+                    el.classList.add('hidden');
+                    el.classList.remove('flex');
+                }
+            });
+            
+            moonIcons.forEach(function(el) {
+                if (isDark) {
+                    el.classList.add('hidden');
+                    el.classList.remove('flex');
+                } else {
+                    el.classList.remove('hidden');
+                    el.classList.add('flex');
+                }
+            });
+
+            toggleBtns.forEach(function(btn) {
+                if (isDark) {
+                    btn.classList.add('bg-slate-800/90', 'border-slate-700/80', 'hover:bg-slate-700/60');
+                    btn.classList.remove('bg-white', 'border-slate-200', 'hover:bg-slate-50', 'shadow-sm');
+                } else {
+                    btn.classList.remove('bg-slate-800/90', 'border-slate-700/80', 'hover:bg-slate-700/60');
+                    btn.classList.add('bg-white', 'border-slate-200', 'hover:bg-slate-50', 'shadow-sm');
+                }
+            });
+        }
+
+        function toggleTheme() {
+            var isDark = document.documentElement.classList.contains('dark');
+            var nextTheme = isDark ? 'light' : 'dark';
+            if (nextTheme === 'dark') {
+                document.documentElement.classList.add('dark');
+                document.documentElement.classList.remove('light');
+            } else {
+                document.documentElement.classList.remove('dark');
+                document.documentElement.classList.add('light');
+            }
+            try {
+                localStorage.setItem('theme', nextTheme);
+            } catch(e) {}
+            updateThemeUI(nextTheme === 'dark');
+            window.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme: nextTheme } }));
+        }
+
+        // Initialize UI on load
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                updateThemeUI(document.documentElement.classList.contains('dark'));
+            });
+        } else {
+            updateThemeUI(document.documentElement.classList.contains('dark'));
+        }
+    </script>
 </body>
 </html>

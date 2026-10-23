@@ -1,9 +1,27 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<html lang="en" class="h-full dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign In — NTTN Service Management Portal</title>
+    <!-- Instant Theme Initializer to prevent flashing -->
+    <script>
+        (function() {
+            try {
+                var savedTheme = localStorage.getItem('theme');
+                var useDark = savedTheme ? (savedTheme === 'dark') : true;
+                if (useDark) {
+                    document.documentElement.classList.add('dark');
+                    document.documentElement.classList.remove('light');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                    document.documentElement.classList.add('light');
+                }
+            } catch (e) {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -23,9 +41,116 @@
     </script>
     <style>
         body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        
+        /* Smooth transitions for theme switching */
+        body, div, input, select, button {
+            transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+        }
+
+        .theme-toggle-btn {
+            background-color: rgba(30, 41, 59, 0.85);
+            border-color: rgba(51, 65, 85, 0.8);
+            color: #cbd5e1;
+            backdrop-filter: blur(8px);
+        }
+        .theme-toggle-btn:hover {
+            background-color: rgba(51, 65, 85, 0.95);
+            color: #ffffff;
+        }
+
+        /* Light Theme for Login */
+        html:not(.dark) {
+            color-scheme: light;
+        }
+        html:not(.dark) body {
+            background-color: #f1f5f9 !important;
+            background-image: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e1 100%) !important;
+            color: #0f172a !important;
+        }
+        html:not(.dark) .grid.md\:grid-cols-5 {
+            background-color: rgba(255, 255, 255, 0.95) !important;
+            border-color: #e2e8f0 !important;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.08) !important;
+        }
+        html:not(.dark) .border-slate-800 {
+            border-color: #e2e8f0 !important;
+        }
+        html:not(.dark) .text-white {
+            color: #0f172a !important;
+        }
+        html:not(.dark) .text-slate-100 {
+            color: #1e293b !important;
+        }
+        html:not(.dark) .text-slate-300 {
+            color: #334155 !important;
+        }
+        html:not(.dark) .text-slate-400 {
+            color: #64748b !important;
+        }
+        html:not(.dark) input[type="email"],
+        html:not(.dark) input[type="password"] {
+            background-color: #ffffff !important;
+            border-color: #cbd5e1 !important;
+            color: #0f172a !important;
+        }
+        html:not(.dark) input[type="email"]::placeholder,
+        html:not(.dark) input[type="password"]::placeholder {
+            color: #94a3b8 !important;
+        }
+        html:not(.dark) input[type="email"]:focus,
+        html:not(.dark) input[type="password"]:focus {
+            border-color: #3b82f6 !important;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15) !important;
+        }
+        html:not(.dark) .theme-toggle-btn {
+            background-color: #ffffff !important;
+            border-color: #cbd5e1 !important;
+            color: #334155 !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
+        }
+        html:not(.dark) .theme-toggle-btn:hover {
+            background-color: #f8fafc !important;
+        }
+        html:not(.dark) .cursor-pointer.p-3\.5 {
+            background-color: #f8fafc !important;
+            background-image: none !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+        }
+        html:not(.dark) .cursor-pointer.p-3\.5:hover {
+            background-color: #ffffff !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08) !important;
+        }
+        html:not(.dark) .bg-slate-950\/60 {
+            background-color: #f1f5f9 !important;
+            border-color: #e2e8f0 !important;
+        }
+        html:not(.dark) button[type="submit"] {
+            color: #ffffff !important;
+        }
     </style>
 </head>
-<body class="min-h-full flex items-center justify-center bg-gradient-to-br from-slate-950 via-[#0b1329] to-slate-950 p-6">
+<body class="min-h-full flex items-center justify-center bg-gradient-to-br from-slate-950 via-[#0b1329] to-slate-950 p-6 relative">
+    
+    <!-- Floating Theme Toggle -->
+    <div class="fixed top-6 right-6 z-50">
+        <button id="themeToggleBtn" type="button" onclick="toggleTheme()" 
+            class="theme-toggle-btn flex items-center gap-2 px-3.5 py-2 rounded-2xl border text-xs font-semibold cursor-pointer shadow-lg transition-all duration-200"
+            title="Switch between Light and Dark mode" aria-label="Toggle theme">
+            <span class="theme-icon-sun hidden items-center gap-2 text-amber-400">
+                <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+                </svg>
+                <span class="font-mono text-slate-300">Light</span>
+            </span>
+            <span class="theme-icon-moon flex items-center gap-2 text-indigo-600">
+                <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+                </svg>
+                <span class="font-mono text-slate-700">Dark</span>
+            </span>
+        </button>
+    </div>
+
     <div class="w-full max-w-4xl grid md:grid-cols-5 gap-8 bg-slate-900/80 border border-slate-800 rounded-3xl p-8 backdrop-blur-xl shadow-2xl shadow-blue-950/50">
         
         <!-- Left: Branding & Direct Form -->
@@ -136,5 +261,68 @@
         </div>
 
     </div>
+
+    <script>
+        function updateThemeUI(isDark) {
+            var sunIcons = document.querySelectorAll('.theme-icon-sun');
+            var moonIcons = document.querySelectorAll('.theme-icon-moon');
+            var toggleBtns = document.querySelectorAll('.theme-toggle-btn');
+            
+            sunIcons.forEach(function(el) {
+                if (isDark) {
+                    el.classList.remove('hidden');
+                    el.classList.add('flex');
+                } else {
+                    el.classList.add('hidden');
+                    el.classList.remove('flex');
+                }
+            });
+            
+            moonIcons.forEach(function(el) {
+                if (isDark) {
+                    el.classList.add('hidden');
+                    el.classList.remove('flex');
+                } else {
+                    el.classList.remove('hidden');
+                    el.classList.add('flex');
+                }
+            });
+
+            toggleBtns.forEach(function(btn) {
+                if (isDark) {
+                    btn.classList.add('bg-slate-800/90', 'border-slate-700/80', 'hover:bg-slate-700/60');
+                    btn.classList.remove('bg-white', 'border-slate-200', 'hover:bg-slate-50', 'shadow-sm');
+                } else {
+                    btn.classList.remove('bg-slate-800/90', 'border-slate-700/80', 'hover:bg-slate-700/60');
+                    btn.classList.add('bg-white', 'border-slate-200', 'hover:bg-slate-50', 'shadow-sm');
+                }
+            });
+        }
+
+        function toggleTheme() {
+            var isDark = document.documentElement.classList.contains('dark');
+            var nextTheme = isDark ? 'light' : 'dark';
+            if (nextTheme === 'dark') {
+                document.documentElement.classList.add('dark');
+                document.documentElement.classList.remove('light');
+            } else {
+                document.documentElement.classList.remove('dark');
+                document.documentElement.classList.add('light');
+            }
+            try {
+                localStorage.setItem('theme', nextTheme);
+            } catch(e) {}
+            updateThemeUI(nextTheme === 'dark');
+        }
+
+        // Initialize UI on load
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                updateThemeUI(document.documentElement.classList.contains('dark'));
+            });
+        } else {
+            updateThemeUI(document.documentElement.classList.contains('dark'));
+        }
+    </script>
 </body>
 </html>
