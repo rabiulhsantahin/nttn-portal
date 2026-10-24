@@ -147,6 +147,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/backups/{filename}/download', [BackupController::class, 'download'])->name('backups.download');
         Route::delete('/backups/{filename}', [BackupController::class, 'destroy'])->name('backups.destroy');
         Route::post('/backups/settings', [BackupController::class, 'updateSettings'])->name('backups.settings');
+        Route::post('/backups/restore', [BackupController::class, 'restore'])->name('backups.restore');
 
         // Super Admin Data Deletion
         Route::delete('/surveys/{survey}', [SurveyController::class, 'destroy'])->name('surveys.destroy');

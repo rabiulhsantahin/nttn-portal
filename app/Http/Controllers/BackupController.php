@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use App\Services\BackupService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -157,6 +159,86 @@ class BackupController extends Controller
 
         return redirect()->route('backups.index')
             ->with('success', 'Disaster recovery and backup settings have been updated.');
+    }
+
+    /**
+     * Restore database from an uploaded file or an existing server archive.
+     */
+    public function restore(Request $request): RedirectResponse
+    {
+        $user = Auth::user();
+        if (! $user->isSuperAdmin()) {
+            abort(403, 'Unauthorized. Only Super Administrator can restore database.');
+        }
+
+        $request->validate([
+            'backup_file' => ['nullable', 'file', 'max:102400'],
+            'filename' => ['nullable', 'string'],
+            'confirm_restore' => ['required'],
+        ], [
+            'confirm_restore.required' => 'You must check the confirmation box to authorize restoring and overwriting the database.',
+        ]);
+
+        $uploadedFile = $request->file('backup_file');
+        $archiveFilename = $request->input('filename');
+
+        if (! $uploadedFile && ! $archiveFilename) {
+            return redirect()->route('backups.index')
+                ->with('error', 'Please choose a backup file to upload (.sql or .sql.gz) or select an existing archive.');
+        }
+
+        $tempPath = null;
+        $originLabel = '';
+
+        try {
+            if ($uploadedFile) {
+                $ext = strtolower($uploadedFile->getClientOriginalExtension());
+                $origName = $uploadedFile->getClientOriginalName();
+
+                if (! in_array($ext, ['sql', 'gz', 'txt', 'bin'])) {
+                    return redirect()->route('backups.index')
+                        ->with('error', "Invalid backup file type (.{$ext}). Please upload a valid .sql or .sql.gz database dump.");
+                }
+
+                $safeName = 'upload_restore_'.time().'_'.preg_replace('/[^A-Za-z0-9_.-]/', '_', $origName);
+                $uploadedFile->move(storage_path('app/backups'), $safeName);
+                $targetPath = storage_path("app/backups/{$safeName}");
+                $tempPath = $targetPath;
+                $originLabel = "uploaded file '{$origName}' (".$this->formatBytes(filesize($targetPath)).')';
+            } else {
+                $safeName = basename($archiveFilename);
+                $targetPath = storage_path("app/backups/{$safeName}");
+                if (! file_exists($targetPath)) {
+                    return redirect()->route('backups.index')
+                        ->with('error', "Backup archive '{$safeName}' not found on server.");
+                }
+                $originLabel = "server archive '{$safeName}'";
+            }
+
+            $result = $this->backupService->restoreBackup($targetPath);
+
+            ActivityLog::record(
+                entityType: 'backup',
+                entityId: 0,
+                action: 'DATABASE_RESTORED_FROM_BACKUP',
+                fromStatus: null,
+                toStatus: 'RESTORED',
+                remarks: "Full database restored from {$originLabel}. Result: {$result['message']}.",
+                userId: $user->id
+            );
+
+            return redirect()->route('backups.index')
+                ->with('success', "Database successfully restored from {$originLabel}! {$result['tables_count']} tables verified.");
+        } catch (\Throwable $e) {
+            Log::error('Database restore error: '.$e->getMessage(), ['trace' => $e->getTraceAsString()]);
+
+            return redirect()->route('backups.index')
+                ->with('error', 'Database restore failed: '.$e->getMessage());
+        } finally {
+            if ($tempPath && file_exists($tempPath)) {
+                @unlink($tempPath);
+            }
+        }
     }
 
     protected function formatBytes(int $bytes): string

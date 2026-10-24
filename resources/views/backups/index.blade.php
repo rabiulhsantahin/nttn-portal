@@ -177,6 +177,68 @@
 
     </div>
 
+    <!-- Section: Upload & Restore Full Database (সার্ভার সেটআপ বা ক্র্যাশ রিকভারি) -->
+    <div class="bg-gradient-to-br from-slate-900 via-slate-900 to-amber-950/25 border border-amber-500/30 rounded-3xl p-6 sm:p-7 shadow-2xl relative overflow-hidden">
+        <div class="flex items-start justify-between pb-4 border-b border-slate-800/80 mb-5 gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center flex-shrink-0 shadow-inner">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-white flex items-center gap-2">
+                        <span>Upload Backup File &amp; Restore Total Data</span>
+                        <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-bold">Server Recovery</span>
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-0.5">নতুন সার্ভার সেটআপের পর বা কোনো সমস্যা হলে আপনার কাছে থাকা <code>.sql</code> অথবা <code>.sql.gz</code> ব্যাকআপ ফাইলটি আপলোড করে সম্পূর্ণ ডেটা রিস্টোর করুন।</p>
+                </div>
+            </div>
+            <span class="text-xs font-mono text-slate-400 hidden sm:inline-block">Max Upload: 100MB</span>
+        </div>
+
+        <form method="POST" action="{{ route('backups.restore') }}" enctype="multipart/form-data" class="space-y-4" onsubmit="return confirmRestoreDatabase(this);">
+            @csrf
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
+                <!-- File upload drag & drop box (8 cols) -->
+                <div class="lg:col-span-8">
+                    <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+                        Select Backup Dump Archive (.sql or .sql.gz)
+                    </label>
+                    <div class="relative border-2 border-dashed border-slate-700 hover:border-amber-500/60 rounded-2xl p-5 bg-slate-950/60 transition-colors flex flex-col items-center justify-center text-center group cursor-pointer" onclick="document.getElementById('backupFileInput').click();">
+                        <svg class="w-8 h-8 text-slate-500 group-hover:text-amber-400 transition-colors mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                        </svg>
+                        <div class="text-xs font-semibold text-slate-300" id="fileChosenLabel">
+                            Click to browse or drag &amp; drop your backup file here
+                        </div>
+                        <div class="text-[11px] text-slate-500 mt-1">Supports compressed <code>.sql.gz</code> (recommended) or uncompressed <code>.sql</code></div>
+                        <input id="backupFileInput" type="file" name="backup_file" accept=".sql,.gz,.zip" required class="hidden" onchange="handleBackupFileSelect(this);">
+                    </div>
+                </div>
+
+                <!-- Restore Confirmation & Submit Button (4 cols) -->
+                <div class="lg:col-span-4 flex flex-col justify-between space-y-4 bg-slate-950/40 p-5 rounded-2xl border border-slate-800">
+                    <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-[11px] text-amber-200 leading-relaxed">
+                        <strong class="text-amber-300 font-bold block mb-1">⚠ সতর্কতা (Warning):</strong>
+                        ফাইল রিস্টোর করলে বর্তমান ডাটাবেজের টেবিলগুলো ব্যাকআপ ফাইলের ডেটা দিয়ে ওভাররাইট (Overwrite) হয়ে যাবে।
+                    </div>
+
+                    <div>
+                        <label class="flex items-start gap-2.5 cursor-pointer select-none">
+                            <input type="checkbox" name="confirm_restore" value="1" required class="mt-0.5 w-4 h-4 rounded bg-slate-900 border-slate-700 text-amber-600 focus:ring-0">
+                            <span class="text-xs text-slate-200 font-semibold">I confirm that I want to restore and overwrite the current database.</span>
+                        </label>
+                    </div>
+
+                    <button type="submit" id="restoreSubmitBtn" class="w-full py-3 bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-extrabold rounded-xl text-xs shadow-lg shadow-amber-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                        <span>Upload File &amp; Restore Total Data</span>
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
     <!-- Section: Existing Backup Archive Ledger Table -->
     <div class="bg-slate-900/80 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
         <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/40">
@@ -218,6 +280,18 @@
                             </td>
                             <td class="py-3.5 px-6 text-right">
                                 <div class="flex items-center justify-end gap-2">
+                                    <!-- Direct Restore Archive Button -->
+                                    <form method="POST" action="{{ route('backups.restore') }}" class="inline" onsubmit="return confirm('Restore database from \'{{ $b['filename'] }}\'? Existing records will be overwritten.');">
+                                        @csrf
+                                        <input type="hidden" name="filename" value="{{ $b['filename'] }}">
+                                        <input type="hidden" name="confirm_restore" value="1">
+                                        <button type="submit" title="Restore database from this archive"
+                                            class="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/30 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                            <span>Restore</span>
+                                        </button>
+                                    </form>
+
                                     <!-- Download Button -->
                                     <a href="{{ route('backups.download', $b['filename']) }}" 
                                         class="px-2.5 py-1 bg-cyan-600/10 hover:bg-cyan-600 text-cyan-300 hover:text-white border border-cyan-500/20 rounded-lg text-[11px] font-semibold transition-all flex items-center gap-1">
@@ -296,4 +370,40 @@
     </div>
 
 </div>
+
+<script>
+function handleBackupFileSelect(input) {
+    const label = document.getElementById('fileChosenLabel');
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        const sizeFormatted = (file.size >= 1048576) 
+            ? (file.size / 1048576).toFixed(2) + ' MB'
+            : (file.size / 1024).toFixed(2) + ' KB';
+        label.innerHTML = `<span class="text-amber-400 font-mono font-bold">Selected File: ${file.name}</span> <span class="text-slate-400 text-[11px]">(${sizeFormatted})</span>`;
+    } else {
+        label.innerText = 'Click to browse or drag & drop your backup file here';
+    }
+}
+
+function confirmRestoreDatabase(form) {
+    const fileInput = document.getElementById('backupFileInput');
+    if (!fileInput.files || !fileInput.files[0]) {
+        alert('Please choose a .sql or .sql.gz backup file to upload first.');
+        return false;
+    }
+    const fileName = fileInput.files[0].name;
+    const confirmed = confirm(`CRITICAL WARNING:\n\nAre you sure you want to restore the entire database from "${fileName}"?\n\nThis will OVERWRITE and REPLACE the current database tables and data. This action cannot be undone.\n\nClick OK to start restoration.`);
+    if (!confirmed) {
+        return false;
+    }
+
+    const btn = document.getElementById('restoreSubmitBtn');
+    if (btn) {
+        btn.disabled = true;
+        btn.classList.add('opacity-75', 'cursor-not-allowed');
+        btn.innerHTML = `<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-slate-950" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> <span>Restoring Database... Please Wait...</span>`;
+    }
+    return true;
+}
+</script>
 @endsection

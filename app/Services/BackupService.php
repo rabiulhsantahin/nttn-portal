@@ -6,6 +6,7 @@ use App\Mail\DatabaseBackupMail;
 use App\Models\ActivityLog;
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -241,7 +242,11 @@ class BackupService
         fwrite($out, '-- Date: '.date('Y-m-d H:i:s')." UTC\n");
         fwrite($out, '-- Driver: '.$connection."\n");
         fwrite($out, "-- ========================================================\n\n");
-        fwrite($out, "SET FOREIGN_KEY_CHECKS=0;\n\n");
+        if ($connection === 'sqlite') {
+            fwrite($out, "PRAGMA foreign_keys = OFF;\n\n");
+        } else {
+            fwrite($out, "SET FOREIGN_KEY_CHECKS=0;\n\n");
+        }
 
         $tables = [];
         if ($connection === 'sqlite') {
@@ -296,7 +301,11 @@ class BackupService
             fwrite($out, "\n");
         }
 
-        fwrite($out, "SET FOREIGN_KEY_CHECKS=1;\n");
+        if ($connection === 'sqlite') {
+            fwrite($out, "PRAGMA foreign_keys = ON;\n");
+        } else {
+            fwrite($out, "SET FOREIGN_KEY_CHECKS=1;\n");
+        }
         fwrite($out, '-- Dump completed on '.date('Y-m-d H:i:s')." UTC\n");
         fclose($out);
 
@@ -450,6 +459,221 @@ class BackupService
         }
 
         return $deleted;
+    }
+
+    /**
+     * Restore database from a backup file (.sql or .sql.gz).
+     *
+     * @param  string  $sourcePath  Path to .sql or .sql.gz file
+     * @return array{
+     *     success: bool,
+     *     tables_count: int,
+     *     message: string,
+     *     restored_at: Carbon,
+     *     duration_seconds: float
+     * }
+     */
+    public function restoreBackup(string $sourcePath): array
+    {
+        if (! file_exists($sourcePath) || ! is_readable($sourcePath)) {
+            throw new \InvalidArgumentException("Backup file does not exist or is not readable: {$sourcePath}");
+        }
+
+        $startTime = microtime(true);
+        $tempSqlPath = null;
+        $isCompressed = $this->isGzipped($sourcePath);
+
+        if ($isCompressed) {
+            $tempSqlPath = storage_path('app/backups/restore_decompressed_'.uniqid().'.sql');
+            $this->decompressGzip($sourcePath, $tempSqlPath);
+            $effectiveSqlPath = $tempSqlPath;
+        } else {
+            $effectiveSqlPath = $sourcePath;
+        }
+
+        if (! file_exists($effectiveSqlPath) || filesize($effectiveSqlPath) < 10) {
+            if ($tempSqlPath && file_exists($tempSqlPath)) {
+                @unlink($tempSqlPath);
+            }
+            throw new \RuntimeException('Restoration failed: The SQL script is empty or invalid.');
+        }
+
+        try {
+            $connection = config('database.default');
+            $dbConfig = config("database.connections.{$connection}", []);
+
+            if (in_array($connection, ['mysql', 'mariadb'])) {
+                $this->restoreMySql($dbConfig, $effectiveSqlPath);
+            } elseif ($connection === 'sqlite') {
+                $this->restoreSqlite($dbConfig, $effectiveSqlPath);
+            } else {
+                $this->restoreViaPdo($effectiveSqlPath);
+            }
+        } finally {
+            if ($tempSqlPath && file_exists($tempSqlPath)) {
+                @unlink($tempSqlPath);
+            }
+        }
+
+        $duration = round(microtime(true) - $startTime, 2);
+        $tablesCount = $this->countTables();
+
+        try {
+            Artisan::call('cache:clear');
+        } catch (\Throwable) {
+            // cache clear is non-fatal
+        }
+
+        return [
+            'success' => true,
+            'tables_count' => $tablesCount,
+            'message' => "Database restored successfully in {$duration}s. {$tablesCount} tables verified.",
+            'restored_at' => Carbon::now(),
+            'duration_seconds' => $duration,
+        ];
+    }
+
+    protected function isGzipped(string $filePath): bool
+    {
+        if (str_ends_with(strtolower($filePath), '.gz')) {
+            return true;
+        }
+
+        $handle = @fopen($filePath, 'rb');
+        if (! $handle) {
+            return false;
+        }
+        $header = fread($handle, 2);
+        fclose($handle);
+
+        return $header === "\x1f\x8b";
+    }
+
+    protected function decompressGzip(string $gzPath, string $destPath): void
+    {
+        $gz = @gzopen($gzPath, 'rb');
+        if (! $gz) {
+            throw new \RuntimeException("Unable to open gzip archive: {$gzPath}");
+        }
+
+        $dest = @fopen($destPath, 'wb');
+        if (! $dest) {
+            gzclose($gz);
+            throw new \RuntimeException("Unable to create temporary decompressed file: {$destPath}");
+        }
+
+        while (! gzeof($gz)) {
+            $chunk = gzread($gz, 65536);
+            if ($chunk !== false && strlen($chunk) > 0) {
+                fwrite($dest, $chunk);
+            }
+        }
+
+        gzclose($gz);
+        fclose($dest);
+    }
+
+    protected function restoreMySql(array $config, string $sqlPath): void
+    {
+        $mysqlBinary = $this->resolveMysqlClientBinary();
+
+        if ($mysqlBinary) {
+            $host = $config['host'] ?? '127.0.0.1';
+            $port = (string) ($config['port'] ?? 3306);
+            $user = $config['username'] ?? 'root';
+            $password = $config['password'] ?? '';
+            $database = $config['database'];
+            $socket = $config['unix_socket'] ?? '';
+
+            $args = [
+                $mysqlBinary,
+                '--default-character-set=utf8mb4',
+                "-u{$user}",
+            ];
+
+            if (! empty($socket) && file_exists($socket)) {
+                $args[] = "--socket={$socket}";
+            } else {
+                $args[] = "-h{$host}";
+                $args[] = "-P{$port}";
+            }
+
+            if ($password !== '') {
+                $args[] = "-p{$password}";
+            }
+
+            $args[] = $database;
+
+            $process = new Process($args);
+            $process->setTimeout(600);
+            $handle = fopen($sqlPath, 'r');
+            $process->setInput($handle);
+            $process->run();
+            if (is_resource($handle)) {
+                fclose($handle);
+            }
+
+            if ($process->isSuccessful()) {
+                return;
+            }
+
+            Log::warning('CLI restore failed, falling back to PDO executor: '.$process->getErrorOutput());
+        }
+
+        $this->restoreViaPdo($sqlPath);
+    }
+
+    protected function restoreSqlite(array $config, string $sqlPath): void
+    {
+        $database = $config['database'];
+
+        $header = '';
+        $f = @fopen($sqlPath, 'rb');
+        if ($f) {
+            $header = fread($f, 16);
+            fclose($f);
+        }
+
+        if (str_starts_with($header, 'SQLite format 3') && $database !== ':memory:') {
+            DB::disconnect();
+            copy($sqlPath, $database);
+            DB::reconnect();
+
+            return;
+        }
+
+        $this->restoreViaPdo($sqlPath);
+    }
+
+    protected function restoreViaPdo(string $sqlPath): void
+    {
+        $content = file_get_contents($sqlPath);
+        if ($content === false || strlen(trim($content)) === 0) {
+            throw new \RuntimeException('SQL backup file is empty.');
+        }
+
+        $connection = config('database.default');
+
+        if ($connection === 'sqlite') {
+            $cleaned = preg_replace('/SET\s+(FOREIGN_KEY_CHECKS|UNIQUE_CHECKS)\s*=\s*[01]\s*;/i', '', $content);
+            DB::unprepared("PRAGMA foreign_keys = OFF;\n".$cleaned."\nPRAGMA foreign_keys = ON;");
+        } else {
+            $cleaned = preg_replace('/PRAGMA\s+foreign_keys\s*=\s*(OFF|ON)\s*;/i', '', $content);
+            DB::unprepared("SET FOREIGN_KEY_CHECKS=0;\n".$cleaned."\nSET FOREIGN_KEY_CHECKS=1;");
+        }
+    }
+
+    protected function resolveMysqlClientBinary(): ?string
+    {
+        foreach (['mariadb', 'mysql', '/usr/bin/mariadb', '/usr/bin/mysql'] as $binary) {
+            $p = new Process([PHP_OS_FAMILY === 'Windows' ? 'where.exe' : 'which', $binary]);
+            $p->run();
+            if ($p->isSuccessful() && ! empty(trim($p->getOutput()))) {
+                return trim(explode("\n", trim($p->getOutput()))[0]);
+            }
+        }
+
+        return null;
     }
 
     protected function resolveDumpBinary(): ?string

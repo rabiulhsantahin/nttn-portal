@@ -7,6 +7,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Services\BackupService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
@@ -160,5 +161,66 @@ class BackupTest extends TestCase
         Mail::assertSent(DatabaseBackupMail::class, function ($mail) {
             return $mail->hasTo('cron-backup@nttn.test');
         });
+    }
+
+    public function test_super_admin_can_restore_database_from_uploaded_file(): void
+    {
+        $backupService = app(BackupService::class);
+        $backupInfo = $backupService->createBackup();
+
+        $uploadedFile = new UploadedFile(
+            $backupInfo['path'],
+            $backupInfo['filename'],
+            'application/gzip',
+            null,
+            true
+        );
+
+        $response = $this->actingAs($this->superAdmin)
+            ->post(route('backups.restore'), [
+                'backup_file' => $uploadedFile,
+                'confirm_restore' => '1',
+            ]);
+
+        $response->assertRedirect(route('backups.index'));
+        $response->assertSessionHas('success');
+    }
+
+    public function test_super_admin_can_restore_database_from_existing_archive(): void
+    {
+        $backupService = app(BackupService::class);
+        $backupInfo = $backupService->createBackup();
+
+        $response = $this->actingAs($this->superAdmin)
+            ->post(route('backups.restore'), [
+                'filename' => $backupInfo['filename'],
+                'confirm_restore' => '1',
+            ]);
+
+        $response->assertRedirect(route('backups.index'));
+        $response->assertSessionHas('success');
+    }
+
+    public function test_restore_fails_without_confirmation(): void
+    {
+        $backupService = app(BackupService::class);
+        $backupInfo = $backupService->createBackup();
+
+        $response = $this->actingAs($this->superAdmin)
+            ->post(route('backups.restore'), [
+                'filename' => $backupInfo['filename'],
+            ]);
+
+        $response->assertSessionHasErrors('confirm_restore');
+    }
+
+    public function test_non_admin_cannot_restore_database(): void
+    {
+        $response = $this->actingAs($this->resellerUser)
+            ->post(route('backups.restore'), [
+                'confirm_restore' => '1',
+            ]);
+
+        $response->assertStatus(403);
     }
 }
