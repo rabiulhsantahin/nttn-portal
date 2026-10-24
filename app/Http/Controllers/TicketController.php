@@ -10,6 +10,8 @@ use App\Models\TicketMessage;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class TicketController extends Controller
@@ -318,5 +320,51 @@ class TicketController extends Controller
         );
 
         return back()->with('success', 'Customer verified circuit is UP! Ticket is now permanently closed and archived.');
+    }
+
+    /**
+     * Remove the specified ticket from storage (Super Admin only).
+     */
+    public function destroy(Ticket $ticket)
+    {
+        $user = Auth::user();
+        if (! $user->isSuperAdmin()) {
+            abort(403, 'Unauthorized. Only Super Administrator can permanently delete trouble tickets.');
+        }
+
+        $ticketNo = $ticket->ticket_no;
+
+        DB::transaction(function () use ($ticket, $ticketNo, $user) {
+            // Remove attachments from disk
+            foreach ($ticket->messages as $msg) {
+                if ($msg->attachment_path && Storage::disk('public')->exists($msg->attachment_path)) {
+                    Storage::disk('public')->delete($msg->attachment_path);
+                }
+            }
+
+            // Delete messages
+            $ticket->messages()->delete();
+
+            // Delete activity logs for this ticket
+            ActivityLog::where('entity_type', 'ticket')
+                ->where('entity_id', $ticket->id)
+                ->delete();
+
+            // Record deletion audit
+            ActivityLog::record(
+                entityType: 'ticket',
+                entityId: $ticket->id,
+                action: 'TICKET_DELETED',
+                fromStatus: $ticket->status,
+                toStatus: null,
+                remarks: "Super Admin {$user->name} permanently deleted trouble ticket {$ticketNo}.",
+                userId: $user->id
+            );
+
+            $ticket->delete();
+        });
+
+        return redirect()->route('tickets.index')
+            ->with('success', "Trouble ticket '{$ticketNo}' has been permanently deleted.");
     }
 }

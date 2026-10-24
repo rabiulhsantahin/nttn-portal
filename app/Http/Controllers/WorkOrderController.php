@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Models\WorkOrder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class WorkOrderController extends Controller
@@ -221,5 +222,50 @@ class WorkOrderController extends Controller
 
         return redirect()->route('surveys.show', $survey)
             ->with('success', $isReHandover ? 'Rectified link re-handed over to NOC successfully!' : "Handover to NOC submitted successfully with Link ID {$linkId}!");
+    }
+
+    /**
+     * Remove the specified work order from storage (Super Admin only).
+     */
+    public function destroy(WorkOrder $workOrder)
+    {
+        $user = Auth::user();
+        if (! $user->isSuperAdmin()) {
+            abort(403, 'Unauthorized. Only Super Administrator can permanently delete work orders.');
+        }
+
+        $woNo = $workOrder->work_order_no;
+
+        DB::transaction(function () use ($workOrder, $woNo, $user) {
+            // Nullify work order reference on links
+            Link::where('work_order_id', $workOrder->id)->update(['work_order_id' => null]);
+
+            // Delete NOC handovers & tests
+            if ($workOrder->nocHandover) {
+                $workOrder->nocHandover->nocTests()->delete();
+                $workOrder->nocHandover->delete();
+            }
+
+            // Delete activity logs for this work order
+            ActivityLog::where('entity_type', 'work_order')
+                ->where('entity_id', $workOrder->id)
+                ->delete();
+
+            // Record deletion audit
+            ActivityLog::record(
+                entityType: 'work_order',
+                entityId: $workOrder->id,
+                action: 'WORK_ORDER_DELETED',
+                fromStatus: $workOrder->status,
+                toStatus: null,
+                remarks: "Super Admin {$user->name} permanently deleted work order {$woNo}.",
+                userId: $user->id
+            );
+
+            $workOrder->delete();
+        });
+
+        return redirect()->route('work-orders.index')
+            ->with('success', "Work Order '{$woNo}' has been permanently deleted.");
     }
 }

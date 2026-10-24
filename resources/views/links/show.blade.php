@@ -35,6 +35,16 @@
         </div>
 
         <div class="flex flex-wrap items-center gap-3">
+            @if(auth()->user()->isSuperAdmin())
+                <form method="POST" action="{{ route('links.destroy', $link) }}" class="inline" onsubmit="return confirm('Are you sure you want to permanently delete circuit link {{ $link->link_id }}? All associated billing records, tickets, and NOC logs will be deleted.');">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="px-4 py-2.5 bg-rose-600/10 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/20 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        <span>Delete Circuit</span>
+                    </button>
+                </form>
+            @endif
             <a href="{{ route('links.chat', $link) }}" class="px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-cyan-600/30 flex items-center gap-2 transition-all">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
                 <span>NOC Real-Time Live Chat</span>

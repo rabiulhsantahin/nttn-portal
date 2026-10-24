@@ -2,8 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\Customer;
+use App\Models\Link;
 use App\Models\Reseller;
 use App\Models\Role;
+use App\Models\SurveyRequest;
+use App\Models\Ticket;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -233,5 +237,146 @@ class UserManagementTest extends TestCase
         $this->assertEquals('promoted.noc@test.com', $this->nocUser->email);
         $this->assertEquals($this->roles[Role::MD]->id, $this->nocUser->role_id);
         $this->assertTrue(Hash::check('newstrongpassword88', $this->nocUser->password));
+    }
+
+    public function test_super_admin_can_delete_user(): void
+    {
+        $this->actingAs($this->superAdmin);
+
+        $response = $this->delete(route('users.destroy', $this->nocUser));
+        $response->assertRedirect(route('users.index'));
+        $this->assertDatabaseMissing('users', ['id' => $this->nocUser->id]);
+    }
+
+    public function test_super_admin_cannot_delete_own_account(): void
+    {
+        $this->actingAs($this->superAdmin);
+
+        $response = $this->delete(route('users.destroy', $this->superAdmin));
+        $response->assertSessionHas('error');
+        $this->assertDatabaseHas('users', ['id' => $this->superAdmin->id]);
+    }
+
+    public function test_login_page_renders_cleanly_without_demo_users_exposed(): void
+    {
+        $response = $this->get(route('login'));
+        $response->assertOk();
+        $response->assertSee('Portal Sign In');
+        $response->assertDontSee('admin@nttn.test');
+        $response->assertDontSee('Khandaker Rafiqul Islam');
+        $response->assertDontSee('ENTERPRISE ACCESS CONTROL');
+    }
+
+    public function test_super_admin_can_delete_survey_request(): void
+    {
+        $this->actingAs($this->superAdmin);
+
+        $customer = Customer::create([
+            'reseller_id' => $this->resellerUser->reseller->id,
+            'name' => 'Test Customer Corp',
+            'phone' => '01700000000',
+            'address' => 'Dhaka',
+            'district' => 'Dhaka',
+        ]);
+
+        $survey = SurveyRequest::create([
+            'reseller_id' => $this->resellerUser->reseller->id,
+            'customer_id' => $customer->id,
+            'request_no' => 'REQ-TEST-DEL-01',
+            'bandwidth_mbps' => 100,
+            'service_type' => 'Dark Fiber',
+            'status' => SurveyRequest::STATUS_SURVEY_REQUESTED,
+        ]);
+
+        $response = $this->delete(route('surveys.destroy', $survey));
+        $response->assertRedirect(route('surveys.index'));
+        $this->assertDatabaseMissing('survey_requests', ['id' => $survey->id]);
+    }
+
+    public function test_super_admin_can_delete_circuit_link(): void
+    {
+        $this->actingAs($this->superAdmin);
+
+        $customer = Customer::create([
+            'reseller_id' => $this->resellerUser->reseller->id,
+            'name' => 'Link Test Customer',
+            'phone' => '01700000001',
+            'address' => 'Chittagong',
+            'district' => 'Chittagong',
+        ]);
+
+        $link = Link::create([
+            'customer_id' => $customer->id,
+            'reseller_id' => $this->resellerUser->reseller->id,
+            'link_id' => 'LNK-TEST-DEL-99',
+            'bandwidth_mbps' => 50,
+            'nttn_provider' => 'Fiber@Home',
+            'circuit_id' => 'CKT-9999',
+            'status' => Link::STATUS_ACTIVE,
+        ]);
+
+        $response = $this->delete(route('links.destroy', $link));
+        $response->assertRedirect(route('links.index'));
+        $this->assertDatabaseMissing('links', ['id' => $link->id]);
+    }
+
+    public function test_super_admin_can_delete_trouble_ticket(): void
+    {
+        $this->actingAs($this->superAdmin);
+
+        $customer = Customer::create([
+            'reseller_id' => $this->resellerUser->reseller->id,
+            'name' => 'Ticket Test Customer',
+            'phone' => '01700000002',
+            'address' => 'Sylhet',
+            'district' => 'Sylhet',
+        ]);
+
+        $link = Link::create([
+            'customer_id' => $customer->id,
+            'reseller_id' => $this->resellerUser->reseller->id,
+            'link_id' => 'LNK-TT-01',
+            'bandwidth_mbps' => 10,
+            'status' => Link::STATUS_ACTIVE,
+        ]);
+
+        $ticket = Ticket::create([
+            'ticket_no' => 'TT-TEST-DEL-01',
+            'link_id' => $link->id,
+            'created_by' => $this->superAdmin->id,
+            'type' => 'Fiber Cut',
+            'priority' => Ticket::PRIORITY_HIGH,
+            'status' => Ticket::STATUS_OPEN,
+            'description' => 'Test fiber cut incident',
+        ]);
+
+        $response = $this->delete(route('tickets.destroy', $ticket));
+        $response->assertRedirect(route('tickets.index'));
+        $this->assertDatabaseMissing('tickets', ['id' => $ticket->id]);
+    }
+
+    public function test_non_admin_cannot_delete_survey_or_link(): void
+    {
+        $this->actingAs($this->nocUser);
+
+        $customer = Customer::create([
+            'reseller_id' => $this->resellerUser->reseller->id,
+            'name' => 'Unauthorized Test Customer',
+            'phone' => '01700000003',
+            'address' => 'Khulna',
+            'district' => 'Khulna',
+        ]);
+
+        $survey = SurveyRequest::create([
+            'reseller_id' => $this->resellerUser->reseller->id,
+            'customer_id' => $customer->id,
+            'request_no' => 'REQ-NO-DEL',
+            'bandwidth_mbps' => 10,
+            'service_type' => 'Dark Fiber',
+            'status' => SurveyRequest::STATUS_SURVEY_REQUESTED,
+        ]);
+
+        $response = $this->delete(route('surveys.destroy', $survey));
+        $response->assertForbidden();
     }
 }

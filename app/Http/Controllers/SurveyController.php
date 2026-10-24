@@ -10,6 +10,7 @@ use App\Models\SurveyRequest;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class SurveyController extends Controller
@@ -438,5 +439,55 @@ class SurveyController extends Controller
 
         return redirect()->route('surveys.show', $survey)
             ->with('info', "Survey request {$survey->request_no} has been cancelled.");
+    }
+
+    /**
+     * Remove the specified survey request from storage (Super Admin only).
+     */
+    public function destroy(SurveyRequest $survey)
+    {
+        $user = Auth::user();
+        if (! $user->isSuperAdmin()) {
+            abort(403, 'Unauthorized. Only Super Administrator can permanently delete survey requests.');
+        }
+
+        $requestNo = $survey->request_no;
+
+        DB::transaction(function () use ($survey, $requestNo, $user) {
+            // Delete related work order and NOC records if any
+            if ($survey->workOrder) {
+                $wo = $survey->workOrder;
+                if ($wo->nocHandover) {
+                    $wo->nocHandover->nocTests()->delete();
+                    $wo->nocHandover->delete();
+                }
+                $wo->delete();
+            }
+
+            // Delete feedbacks and approvals
+            $survey->feedbacks()->delete();
+            $survey->approvals()->delete();
+
+            // Delete activity logs for this survey
+            ActivityLog::where('entity_type', 'survey_request')
+                ->where('entity_id', $survey->id)
+                ->delete();
+
+            // Record deletion audit
+            ActivityLog::record(
+                entityType: 'survey_request',
+                entityId: $survey->id,
+                action: 'SURVEY_DELETED',
+                fromStatus: $survey->status,
+                toStatus: null,
+                remarks: "Super Admin {$user->name} permanently deleted survey request {$requestNo}.",
+                userId: $user->id
+            );
+
+            $survey->delete();
+        });
+
+        return redirect()->route('surveys.index')
+            ->with('success', "Survey request '{$requestNo}' and its associated records have been permanently deleted.");
     }
 }

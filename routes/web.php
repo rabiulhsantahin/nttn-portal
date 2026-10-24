@@ -129,7 +129,7 @@ Route::middleware('auth')->group(function () {
     // Quick Role Switch (Protected to Super Admin)
     Route::post('/quick-login', [AuthController::class, 'quickLogin'])->name('login.quick');
 
-    // Super Admin User & Role Management
+    // Super Admin User & Data Management
     Route::middleware('role:super_admin')->group(function () {
         Route::get('/users', [UserController::class, 'index'])->name('users.index');
         Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
@@ -138,6 +138,15 @@ Route::middleware('auth')->group(function () {
         Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
         Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
         Route::post('/users/{user}/login-as', [UserController::class, 'impersonate'])->name('users.impersonate');
+
+        // Super Admin Data Deletion
+        Route::delete('/surveys/{survey}', [SurveyController::class, 'destroy'])->name('surveys.destroy');
+        Route::delete('/links/{link}', [LinkController::class, 'destroy'])->name('links.destroy');
+        Route::delete('/tickets/{ticket}', [TicketController::class, 'destroy'])->name('tickets.destroy');
+        Route::delete('/work-orders/{workOrder}', [WorkOrderController::class, 'destroy'])->name('work-orders.destroy');
+        Route::delete('/billing/{billing}', [BillingController::class, 'destroy'])->name('billing.destroy');
+        Route::delete('/activity-logs/{activityLog}', [ActivityLogController::class, 'destroy'])->name('activity-logs.destroy');
+        Route::post('/activity-logs/purge', [ActivityLogController::class, 'purge'])->name('activity-logs.purge');
     });
 
     // Exit Impersonation (Available to any active impersonated session)

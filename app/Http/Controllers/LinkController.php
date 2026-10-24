@@ -2,11 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use App\Models\Link;
+use App\Models\NocHandover;
 use App\Models\Role;
 use App\Models\SurveyRequest;
+use App\Models\TicketMessage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class LinkController extends Controller
 {
@@ -68,5 +72,65 @@ class LinkController extends Controller
         ]);
 
         return view('links.show', compact('link'));
+    }
+
+    /**
+     * Remove the specified link from storage (Super Admin only).
+     */
+    public function destroy(Link $link)
+    {
+        $user = Auth::user();
+        if (! $user->isSuperAdmin()) {
+            abort(403, 'Unauthorized. Only Super Administrator can permanently delete links.');
+        }
+
+        $linkId = $link->link_id;
+
+        DB::transaction(function () use ($link, $linkId, $user) {
+            // Delete associated tickets and ticket messages
+            $ticketIds = $link->tickets()->pluck('id');
+            if ($ticketIds->isNotEmpty()) {
+                TicketMessage::whereIn('ticket_id', $ticketIds)->delete();
+                $link->tickets()->delete();
+            }
+
+            // Delete chat room and messages
+            if ($link->chatRoom) {
+                $link->chatRoom->messages()->delete();
+                $link->chatRoom->delete();
+            }
+
+            // Delete billing and revisions
+            if ($link->billing) {
+                $link->billing->rateRevisions()->delete();
+                $link->billing->delete();
+            }
+            $link->rateRevisions()->delete();
+            $link->serviceRequests()->delete();
+
+            // Clear foreign key from NOC handovers
+            NocHandover::where('link_id', $link->id)->update(['link_id' => null]);
+
+            // Clear activity logs for this link
+            ActivityLog::where('entity_type', 'link')
+                ->where('entity_id', $link->id)
+                ->delete();
+
+            // Record deletion audit
+            ActivityLog::record(
+                entityType: 'link',
+                entityId: $link->id,
+                action: 'LINK_DELETED',
+                fromStatus: $link->status,
+                toStatus: null,
+                remarks: "Super Admin {$user->name} permanently deleted circuit link {$linkId}.",
+                userId: $user->id
+            );
+
+            $link->delete();
+        });
+
+        return redirect()->route('links.index')
+            ->with('success', "Circuit link '{$linkId}' and all associated records have been permanently deleted.");
     }
 }

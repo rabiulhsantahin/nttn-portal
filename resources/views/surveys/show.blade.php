@@ -27,6 +27,16 @@
         </div>
 
         <div class="flex items-center gap-2">
+            @if(auth()->user()->isSuperAdmin())
+                <form method="POST" action="{{ route('surveys.destroy', $survey) }}" class="inline" onsubmit="return confirm('Are you sure you want to permanently delete survey {{ $survey->request_no }}? All associated feasibility records, work orders, and logs will be removed.');">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="px-3.5 py-2 bg-rose-600/10 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/20 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        <span>Delete Survey</span>
+                    </button>
+                </form>
+            @endif
             @if($survey->workOrder && $survey->workOrder->link)
                 <a href="{{ route('links.show', $survey->workOrder->link) }}" class="px-4 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101"/></svg>

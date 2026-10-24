@@ -381,9 +381,20 @@
                                 {{ $b->billing_start_date?->format('M d, Y') }} &rarr; {{ $b->due_date?->format('M d, Y') }}
                             </td>
                             <td class="px-6 py-4 text-right">
-                                <span class="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                    {{ $b->status }}
-                                </span>
+                                <div class="flex items-center justify-end gap-2">
+                                    <span class="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                        {{ $b->status }}
+                                    </span>
+                                    @if(auth()->user()->isSuperAdmin())
+                                        <form method="POST" action="{{ route('billing.destroy', $b) }}" class="inline" onsubmit="return confirm('Are you sure you want to permanently delete billing invoice {{ $b->invoice_no }}?');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" title="Delete Invoice Record" class="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                            </button>
+                                        </form>
+                                    @endif
+                                </div>
                             </td>
                         </tr>
                     @empty

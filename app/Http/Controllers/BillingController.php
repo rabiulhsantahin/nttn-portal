@@ -13,6 +13,7 @@ use App\Models\Reseller;
 use App\Models\SurveyRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class BillingController extends Controller
@@ -474,5 +475,38 @@ class BillingController extends Controller
 
         return redirect()->route('billing.index')
             ->with('success', "Rate revision for Circuit {$circuitCode} submitted (৳ ".number_format($billing->monthly_charge, 2).' → ৳ '.number_format($validated['monthly_charge'], 2).'). Forwarded to MD Sir for executive approval.');
+    }
+
+    /**
+     * Remove the specified billing record from storage (Super Admin only).
+     */
+    public function destroy(Billing $billing)
+    {
+        $user = Auth::user();
+        if (! $user->isSuperAdmin()) {
+            abort(403, 'Unauthorized. Only Super Administrator can permanently delete billing records.');
+        }
+
+        $invNo = $billing->invoice_no ?? ('ID-'.$billing->id);
+
+        DB::transaction(function () use ($billing, $invNo, $user) {
+            $billing->rateRevisions()->delete();
+
+            // Record deletion audit
+            ActivityLog::record(
+                entityType: 'billing',
+                entityId: $billing->id,
+                action: 'BILLING_RECORD_DELETED',
+                fromStatus: $billing->status,
+                toStatus: null,
+                remarks: "Super Admin {$user->name} permanently deleted billing record {$invNo}.",
+                userId: $user->id
+            );
+
+            $billing->delete();
+        });
+
+        return redirect()->route('billing.index')
+            ->with('success', "Billing record '{$invNo}' has been permanently deleted.");
     }
 }

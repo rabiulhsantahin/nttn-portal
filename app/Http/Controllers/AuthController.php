@@ -14,16 +14,7 @@ class AuthController extends Controller
             return redirect()->route('dashboard');
         }
 
-        $demoUsers = User::with('role')->whereIn('email', [
-            'admin@nttn.test',
-            'md@nttn.test',
-            'reseller@isp.test',
-            'tx@nttn.test',
-            'noc@nttn.test',
-            'billing@nttn.test',
-        ])->get();
-
-        return view('auth.login', compact('demoUsers'));
+        return view('auth.login');
     }
 
     public function login(Request $request)

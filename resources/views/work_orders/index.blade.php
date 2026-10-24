@@ -60,9 +60,20 @@
                                 </span>
                             </td>
                             <td class="px-6 py-4 text-right">
-                                <a href="{{ route('surveys.show', $wo->surveyRequest) }}" class="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-white transition-colors inline-block">
-                                    Manage &rarr;
-                                </a>
+                                <div class="flex items-center justify-end gap-2">
+                                    <a href="{{ route('surveys.show', $wo->surveyRequest) }}" class="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-white transition-colors inline-block">
+                                        Manage &rarr;
+                                    </a>
+                                    @if(auth()->user()->isSuperAdmin())
+                                        <form method="POST" action="{{ route('work-orders.destroy', $wo) }}" class="inline" onsubmit="return confirm('Are you sure you want to permanently delete work order {{ $wo->work_order_no }}? Associated NOC handover and testing records will also be deleted.');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" title="Delete Work Order" class="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                            </button>
+                                        </form>
+                                    @endif
+                                </div>
                             </td>
                         </tr>
                     @empty

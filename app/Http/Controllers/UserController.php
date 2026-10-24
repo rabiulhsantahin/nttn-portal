@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -228,19 +229,29 @@ class UserController extends Controller
         $userName = $user->name;
         $userRole = $user->role->name;
 
-        ActivityLog::record(
-            'user',
-            $user->id,
-            'USER_DELETED',
-            $userRole,
-            null,
-            "Super Admin deleted user {$userName}."
-        );
+        try {
+            DB::transaction(function () use ($user, $userName, $userRole) {
+                if ($user->reseller) {
+                    $user->reseller->delete();
+                }
 
-        $user->delete();
+                ActivityLog::record(
+                    'user',
+                    $user->id,
+                    'USER_DELETED',
+                    $userRole,
+                    null,
+                    "Super Admin deleted user {$userName}."
+                );
 
-        return redirect()->route('users.index')
-            ->with('success', "User '{$userName}' has been deleted.");
+                $user->delete();
+            });
+
+            return redirect()->route('users.index')
+                ->with('success', "User '{$userName}' has been deleted.");
+        } catch (\Throwable $e) {
+            return back()->with('error', "Unable to delete user '{$userName}': ".$e->getMessage());
+        }
     }
 
     /**
