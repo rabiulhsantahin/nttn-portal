@@ -6,6 +6,7 @@ use App\Mail\DatabaseBackupMail;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\BackupService;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
@@ -25,6 +26,8 @@ class BackupTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        $this->withoutMiddleware(PreventRequestForgery::class);
 
         $this->roles = [
             Role::SUPER_ADMIN => Role::firstOrCreate(['name' => Role::SUPER_ADMIN]),
