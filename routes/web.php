@@ -111,6 +111,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/tickets/{ticket}/status', [TicketController::class, 'updateStatus'])->name('tickets.update-status');
     Route::post('/tickets/{ticket}/messages', [TicketController::class, 'sendMessage'])->name('tickets.messages.send');
     Route::post('/tickets/{ticket}/verify-up', [TicketController::class, 'verifyCustomerUp'])->name('tickets.verify-up');
+    Route::post('/tickets/{ticket}/resend-nttn-email', [TicketController::class, 'resendNttnEmail'])->name('tickets.resend-nttn-email');
 
     // Service Requests (Upgrade/Downgrade)
     Route::get('/service-requests', [ServiceRequestController::class, 'index'])->name('service-requests.index');

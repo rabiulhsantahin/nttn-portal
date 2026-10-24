@@ -19,14 +19,91 @@
         <div class="space-y-4">
             <div>
                 <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Affected Circuit *</label>
-                <select name="link_id" required class="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500 font-mono">
+                <select name="link_id" id="link_id_select" required class="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500 font-mono" onchange="handleCircuitChange(this)">
                     <option value="">-- Select Active Circuit --</option>
                     @foreach($links as $l)
-                        <option value="{{ $l->id }}" {{ (old('link_id', $selectedLink?->id) == $l->id) ? 'selected' : '' }}>
+                        <option value="{{ $l->id }}" 
+                            data-nttn-provider="{{ $l->nttn_provider ?? 'Summit Communications' }}"
+                            data-nttn-link-id="{{ $l->nttn_link_id ?: ($l->circuit_id ?: $l->link_id) }}"
+                            data-circuit-id="{{ $l->circuit_id ?? '' }}"
+                            data-customer="{{ $l->customer->name ?? '' }}"
+                            data-bandwidth="{{ $l->bandwidth_mbps }}"
+                            {{ (old('link_id', $selectedLink?->id) == $l->id) ? 'selected' : '' }}>
                             {{ $l->link_id }} — {{ $l->customer->name }} ({{ $l->circuit_id ?? 'No Circuit ID' }}{{ (!auth()->user()->isReseller() && $l->nttn_link_id) ? ' | NTTN: ' . $l->nttn_link_id : '' }}) [{{ $l->bandwidth_mbps }} Mbps]
                         </option>
                     @endforeach
                 </select>
+            </div>
+
+            <!-- NTTN Carrier Escalation & Auto Email Dispatch Card -->
+            <div class="p-5 rounded-2xl bg-slate-950/90 border border-blue-500/30 space-y-4 shadow-inner">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div class="flex items-center gap-2.5">
+                        <span class="w-7 h-7 rounded-lg bg-blue-500/20 text-blue-400 font-bold flex items-center justify-center text-sm">📡</span>
+                        <div>
+                            <h3 class="text-xs font-bold uppercase tracking-wider text-white">NTTN Carrier Escalation &amp; NOC Notification</h3>
+                            <p class="text-[11px] text-slate-400">Escalation mail with NTTN Link ID will be auto-dispatched to the selected carrier NOC mail address.</p>
+                        </div>
+                    </div>
+                    <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-semibold">
+                        Auto Email
+                    </span>
+                </div>
+
+                <div class="grid sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">NTTN Provider Company *</label>
+                        <select name="nttn_provider" id="nttn_provider" class="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500" onchange="handleNttnProviderChange(this.value)">
+                            @php
+                                $standardProviders = ['Summit Communications', 'Fiber@Home', 'Bahon Limited', 'Direct Ring Core', 'Other NTTN'];
+                                $currentProvider = old('nttn_provider', $selectedLink?->nttn_provider ?? 'Summit Communications');
+                            @endphp
+                            @foreach($standardProviders as $prov)
+                                <option value="{{ $prov }}" {{ $currentProvider === $prov ? 'selected' : '' }}>{{ $prov }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                            NTTN Company Link ID *
+                            <span class="text-[10px] lowercase font-normal text-amber-400">(included in email)</span>
+                        </label>
+                        <input type="text" name="nttn_link_id" id="nttn_link_id" 
+                            value="{{ old('nttn_link_id', $selectedLink?->nttn_link_id ?: ($selectedLink?->circuit_id ?: $selectedLink?->link_id)) }}" 
+                            placeholder="e.g. LNK-SUM-9821 / CIR-10492"
+                            class="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white font-mono focus:outline-none focus:border-blue-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                        <span>NTTN Provider Company Mail Address *</span>
+                        <span class="text-[10px] lowercase font-normal text-slate-400">Multiple emails comma separated</span>
+                    </label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                        </div>
+                        <input type="text" name="nttn_provider_email" id="nttn_provider_email"
+                            value="{{ old('nttn_provider_email', \App\Http\Controllers\TicketController::getDefaultNttnEmail($selectedLink?->nttn_provider ?? 'Summit Communications')) }}"
+                            placeholder="noc@summitcommunications.net, support@summitcommunications.net"
+                            class="w-full pl-10 pr-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white font-mono focus:outline-none focus:border-blue-500">
+                    </div>
+                    <p class="text-[11px] text-slate-400 mt-1 flex items-center gap-1.5">
+                        <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                        Default NOC mail address is automatically populated. You can customize or add multiple addresses.
+                    </p>
+                </div>
+
+                <div class="pt-2">
+                    <label class="flex items-center gap-2.5 cursor-pointer select-none">
+                        <input type="checkbox" name="send_nttn_email" value="1" checked class="w-4 h-4 rounded text-blue-600 bg-slate-900 border-slate-700 focus:ring-0 focus:ring-offset-0">
+                        <span class="text-xs font-semibold text-slate-200">
+                            Auto-dispatch fault escalation email to selected NTTN Provider NOC immediately on submit
+                        </span>
+                    </label>
+                </div>
             </div>
 
             <div class="grid sm:grid-cols-2 gap-4">
@@ -83,4 +160,63 @@
     </form>
 
 </div>
+
+<script>
+    const nttnEmailDirectory = {
+        'Summit Communications': 'noc@summitcommunications.net',
+        'Fiber@Home': 'noc@fiberathome.net',
+        'Bahon Limited': 'noc@bahonltd.com',
+        'Direct Ring Core': 'noc@nttn-portal.local',
+        'Other NTTN': ''
+    };
+
+    function handleNttnProviderChange(provider) {
+        const emailInput = document.getElementById('nttn_provider_email');
+        if (nttnEmailDirectory[provider] !== undefined && nttnEmailDirectory[provider] !== '') {
+            emailInput.value = nttnEmailDirectory[provider];
+        }
+    }
+
+    function handleCircuitChange(selectElement) {
+        const selectedOption = selectElement.options[selectElement.selectedIndex];
+        if (!selectedOption || !selectedOption.value) return;
+
+        const provider = selectedOption.getAttribute('data-nttn-provider');
+        const linkId = selectedOption.getAttribute('data-nttn-link-id');
+
+        if (provider) {
+            const providerSelect = document.getElementById('nttn_provider');
+            if (providerSelect) {
+                // If option exists in dropdown, select it
+                let matched = false;
+                for (let i = 0; i < providerSelect.options.length; i++) {
+                    if (providerSelect.options[i].value === provider) {
+                        providerSelect.selectedIndex = i;
+                        matched = true;
+                        break;
+                    }
+                }
+                if (!matched) {
+                    providerSelect.value = 'Other NTTN';
+                }
+                handleNttnProviderChange(provider);
+            }
+        }
+
+        if (linkId) {
+            const linkIdInput = document.getElementById('nttn_link_id');
+            if (linkIdInput) {
+                linkIdInput.value = linkId;
+            }
+        }
+    }
+
+    // Auto-trigger on page load if circuit is pre-selected
+    document.addEventListener('DOMContentLoaded', function () {
+        const select = document.getElementById('link_id_select');
+        if (select && select.value) {
+            handleCircuitChange(select);
+        }
+    });
+</script>
 @endsection

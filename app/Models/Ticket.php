@@ -32,6 +32,10 @@ class Ticket extends Model
         'type',
         'priority',
         'description',
+        'nttn_provider',
+        'nttn_link_id',
+        'nttn_provider_email',
+        'nttn_email_sent_at',
         'attachment_path',
         'status',
         'is_customer_verified',
@@ -48,6 +52,7 @@ class Ticket extends Model
             'verified_at' => 'datetime',
             'resolved_at' => 'datetime',
             'closed_at' => 'datetime',
+            'nttn_email_sent_at' => 'datetime',
         ];
     }
 
