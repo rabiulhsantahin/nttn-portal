@@ -50,7 +50,7 @@ class SystemSetting extends Model
         return [
             'Summit Communications' => 'noc@summitcommunications.net',
             'Fiber@Home' => 'noc@fiberathome.net',
-            'Bahon Limited' => 'noc@bahonltd.com',
+            'Bahon Limited' => 'nmasum54@gmail.com',
             'Direct Ring Core' => 'noc@nttn-portal.local',
             'Other NTTN' => '',
         ];
@@ -105,7 +105,7 @@ class SystemSetting extends Model
             return $directory['Fiber@Home'] ?? 'noc@fiberathome.net';
         }
         if (str_contains($lower, 'bahon')) {
-            return $directory['Bahon Limited'] ?? 'noc@bahonltd.com';
+            return $directory['Bahon Limited'] ?? 'nmasum54@gmail.com';
         }
         if (str_contains($lower, 'direct')) {
             return $directory['Direct Ring Core'] ?? 'noc@nttn-portal.local';
