@@ -50,7 +50,7 @@
                                 <a href="{{ route('tickets.show', $t) }}" class="hover:underline">
                                     {{ $t->ticket_no }}
                                 </a>
-                                <div class="text-[11px] text-slate-500 font-mono">{{ $t->created_at->format('M d, H:i') }}</div>
+                                <div class="text-[11px] text-slate-500 font-mono">{{ $t->created_at->timezone(config('app.timezone', 'Asia/Dhaka'))->format('M d, Y h:i A') }}</div>
                             </td>
                             <td class="px-6 py-4 font-mono text-cyan-400">
                                 <a href="{{ route('links.show', $t->link) }}" class="hover:underline">

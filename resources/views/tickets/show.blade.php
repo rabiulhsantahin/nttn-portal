@@ -25,7 +25,7 @@
             <div class="text-xs text-slate-400 mt-2 font-mono">
                 Affected Circuit: <a href="{{ route('links.show', $ticket->link) }}" class="text-cyan-400 font-bold hover:underline">{{ $ticket->link->link_id }}</a> (Circuit: <span class="text-slate-300">{{ $ticket->link->circuit_id ?? 'N/A' }}</span>@if(!auth()->user()->isReseller() && $ticket->link->nttn_link_id), NTTN: <span class="text-emerald-400">{{ $ticket->link->nttn_link_id }}</span>@endif) 
                 | Customer: <strong class="text-slate-200">{{ $ticket->link->customer->name }}</strong>
-                | Logged by: <strong class="text-slate-200">{{ $ticket->creator->name }}</strong> ({{ $ticket->created_at->format('M d, Y H:i') }})
+                | Logged by: <strong class="text-slate-200">{{ $ticket->creator->name }}</strong> ({{ $ticket->created_at->timezone(config('app.timezone', 'Asia/Dhaka'))->format('M d, Y h:i A') }})
             </div>
         </div>
 
@@ -84,7 +84,7 @@
             </div>
             @if($ticket->verified_at)
                 <span class="text-[11px] font-mono text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20 whitespace-nowrap">
-                    ✓ Verified: {{ $ticket->verified_at->format('M d, H:i') }}
+                    ✓ Verified: {{ $ticket->verified_at->timezone(config('app.timezone', 'Asia/Dhaka'))->format('M d, Y h:i A') }}
                 </span>
             @endif
         </div>
@@ -118,10 +118,10 @@
 
                 <div class="flex items-center gap-4 text-xs font-mono pt-2">
                     @if($ticket->resolved_at)
-                        <span class="text-emerald-400">&check; Resolved: {{ $ticket->resolved_at->format('M d, H:i') }}</span>
+                        <span class="text-emerald-400">&check; Resolved: {{ $ticket->resolved_at->timezone(config('app.timezone', 'Asia/Dhaka'))->format('M d, Y h:i A') }}</span>
                     @endif
                     @if($ticket->closed_at)
-                        <span class="text-slate-400">&check; Closed: {{ $ticket->closed_at->format('M d, H:i') }}</span>
+                        <span class="text-slate-400">&check; Closed: {{ $ticket->closed_at->timezone(config('app.timezone', 'Asia/Dhaka'))->format('M d, Y h:i A') }}</span>
                     @endif
                 </div>
             </div>
@@ -150,7 +150,7 @@
                                     @else bg-purple-500/20 text-purple-300 @endif">
                                     {{ $msg->user->role?->name ?? 'User' }}
                                 </span>
-                                <span>{{ $msg->created_at->format('M d, H:i') }}</span>
+                                <span>{{ $msg->created_at->timezone(config('app.timezone', 'Asia/Dhaka'))->format('M d, Y h:i A') }}</span>
                             </div>
 
                             <div class="max-w-xl rounded-2xl p-4 text-xs leading-relaxed shadow-md
@@ -266,7 +266,7 @@
                     @if($ticket->nttn_email_sent_at)
                         <div class="flex justify-between items-center pt-1 border-t border-slate-800/80 text-[11px]">
                             <span class="text-slate-400">Last Dispatched:</span>
-                            <span class="text-emerald-400">{{ $ticket->nttn_email_sent_at->format('M d, H:i') }}</span>
+                            <span class="text-emerald-400 font-mono">{{ $ticket->nttn_email_sent_at->timezone(config('app.timezone', 'Asia/Dhaka'))->format('M d, Y h:i A') }}</span>
                         </div>
                     @endif
                 </div>
@@ -308,7 +308,7 @@
                         @if($ticket->verified_at)
                             <div class="flex justify-between">
                                 <span class="text-slate-500">Customer UP Verified:</span>
-                                <span class="text-slate-200">{{ $ticket->verified_at->format('M d, Y H:i') }}</span>
+                                <span class="text-slate-200">{{ $ticket->verified_at->timezone(config('app.timezone', 'Asia/Dhaka'))->format('M d, Y h:i A') }}</span>
                             </div>
                         @endif
                         @if($ticket->verifier)
@@ -320,7 +320,7 @@
                         @if($ticket->closed_at)
                             <div class="flex justify-between">
                                 <span class="text-slate-500">Closed At:</span>
-                                <span class="text-slate-200">{{ $ticket->closed_at->format('M d, Y H:i') }}</span>
+                                <span class="text-slate-200">{{ $ticket->closed_at->timezone(config('app.timezone', 'Asia/Dhaka'))->format('M d, Y h:i A') }}</span>
                             </div>
                         @endif
                     </div>
