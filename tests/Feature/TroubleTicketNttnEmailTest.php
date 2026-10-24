@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\TicketController;
 use App\Http\Middleware\PreventRequestForgery;
 use App\Mail\NttnIncidentTroubleTicketMail;
 use App\Models\Customer;
 use App\Models\Link;
 use App\Models\Reseller;
 use App\Models\Role;
+use App\Models\SystemSetting;
 use App\Models\Ticket;
 use App\Models\User;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
@@ -180,5 +182,63 @@ class TroubleTicketNttnEmailTest extends TestCase
         Mail::assertSent(NttnIncidentTroubleTicketMail::class, function ($mail) {
             return $mail->hasTo('escalations@bahonltd.com') && str_contains($mail->envelope()->subject, 'BAHON-LINK-772');
         });
+    }
+
+    public function test_super_admin_can_update_nttn_provider_send_mail_directory(): void
+    {
+        $adminRole = Role::firstOrCreate(['name' => Role::SUPER_ADMIN]);
+        $superAdmin = User::firstOrCreate(
+            ['email' => 'admin@nttn.test'],
+            [
+                'role_id' => $adminRole->id,
+                'name' => 'Super Admin',
+                'password' => bcrypt('password'),
+                'is_active' => true,
+            ]
+        );
+
+        $payload = [
+            'providers' => [
+                ['name' => 'Summit Communications', 'email' => 'noc@summitcommunications.net'],
+                ['name' => 'Fiber@Home', 'email' => 'noc@fiberathome.net'],
+                ['name' => 'Bahon Limited', 'email' => 'nmasum54@gmail.com'],
+                ['name' => 'Direct Ring Core', 'email' => 'noc@nttn-portal.local'],
+            ],
+        ];
+
+        $response = $this->actingAs($superAdmin)->post(route('admin.mail-settings.providers'), $payload);
+
+        $response->assertRedirect(route('admin.mail-settings.index'));
+        $response->assertSessionHas('success');
+
+        $this->assertSame('nmasum54@gmail.com', SystemSetting::getEmailForProvider('Bahon Limited'));
+        $this->assertSame('nmasum54@gmail.com', TicketController::getDefaultNttnEmail('Bahon Limited'));
+    }
+
+    public function test_escalation_email_contains_no_internal_link_or_circuit_id(): void
+    {
+        $ticket = Ticket::create([
+            'ticket_no' => 'TT-2026-EXTERNAL',
+            'link_id' => $this->link->id,
+            'created_by' => $this->nocUser->id,
+            'type' => 'Total Optical Loss (Fiber Cut)',
+            'priority' => 'CRITICAL',
+            'description' => 'Field joint sheared.',
+            'nttn_provider' => 'Bahon Limited',
+            'nttn_link_id' => 'AIKDBW0032P/S',
+            'nttn_provider_email' => 'nmasum54@gmail.com',
+            'status' => Ticket::STATUS_OPEN,
+        ]);
+
+        $mailable = new NttnIncidentTroubleTicketMail($ticket, $this->link);
+        $renderedHtml = $mailable->render();
+
+        // Must contain the NTTN Link ID
+        $this->assertStringContainsString('AIKDBW0032P/S', $renderedHtml);
+
+        // Must NOT contain internal circuit ID, internal link ID, or internal label
+        $this->assertStringNotContainsString('CIR-TEST-001', $renderedHtml);
+        $this->assertStringNotContainsString('LNK-LEG-TEST01', $renderedHtml);
+        $this->assertStringNotContainsString('Internal Circuit Code', $renderedHtml);
     }
 }

@@ -24,8 +24,7 @@
                     @foreach($links as $l)
                         <option value="{{ $l->id }}" 
                             data-nttn-provider="{{ $l->nttn_provider ?? 'Summit Communications' }}"
-                            data-nttn-link-id="{{ $l->nttn_link_id ?: ($l->circuit_id ?: $l->link_id) }}"
-                            data-circuit-id="{{ $l->circuit_id ?? '' }}"
+                            data-nttn-link-id="{{ $l->nttn_link_id ?? '' }}"
                             data-customer="{{ $l->customer->name ?? '' }}"
                             data-bandwidth="{{ $l->bandwidth_mbps }}"
                             {{ (old('link_id', $selectedLink?->id) == $l->id) ? 'selected' : '' }}>
@@ -55,11 +54,11 @@
                         <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">NTTN Provider Company *</label>
                         <select name="nttn_provider" id="nttn_provider" class="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500" onchange="handleNttnProviderChange(this.value)">
                             @php
-                                $standardProviders = ['Summit Communications', 'Fiber@Home', 'Bahon Limited', 'Direct Ring Core', 'Other NTTN'];
-                                $currentProvider = old('nttn_provider', $selectedLink?->nttn_provider ?? 'Summit Communications');
+                                $nttnDirectory = \App\Models\SystemSetting::getNttnProviderEmails();
+                                $currentProvider = old('nttn_provider', $selectedLink?->nttn_provider ?? array_key_first($nttnDirectory));
                             @endphp
-                            @foreach($standardProviders as $prov)
-                                <option value="{{ $prov }}" {{ $currentProvider === $prov ? 'selected' : '' }}>{{ $prov }}</option>
+                            @foreach($nttnDirectory as $provName => $provMail)
+                                <option value="{{ $provName }}" {{ $currentProvider === $provName ? 'selected' : '' }}>{{ $provName }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -67,11 +66,11 @@
                     <div>
                         <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
                             NTTN Company Link ID *
-                            <span class="text-[10px] lowercase font-normal text-amber-400">(included in email)</span>
+                            <span class="text-[10px] lowercase font-normal text-amber-400">(included in carrier email)</span>
                         </label>
                         <input type="text" name="nttn_link_id" id="nttn_link_id" 
-                            value="{{ old('nttn_link_id', $selectedLink?->nttn_link_id ?: ($selectedLink?->circuit_id ?: $selectedLink?->link_id)) }}" 
-                            placeholder="e.g. LNK-SUM-9821 / CIR-10492"
+                            value="{{ old('nttn_link_id', $selectedLink?->nttn_link_id ?? '') }}" 
+                            placeholder="e.g. AIKDBW0032P/S (Carrier NTTN Link ID)"
                             class="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white font-mono focus:outline-none focus:border-blue-500">
                     </div>
                 </div>
@@ -162,13 +161,7 @@
 </div>
 
 <script>
-    const nttnEmailDirectory = {
-        'Summit Communications': 'noc@summitcommunications.net',
-        'Fiber@Home': 'noc@fiberathome.net',
-        'Bahon Limited': 'noc@bahonltd.com',
-        'Direct Ring Core': 'noc@nttn-portal.local',
-        'Other NTTN': ''
-    };
+    const nttnEmailDirectory = @json(\App\Models\SystemSetting::getNttnProviderEmails());
 
     function handleNttnProviderChange(provider) {
         const emailInput = document.getElementById('nttn_provider_email');

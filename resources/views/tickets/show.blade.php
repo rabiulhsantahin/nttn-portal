@@ -257,7 +257,7 @@
                     </div>
                     <div class="flex justify-between items-center">
                         <span class="text-slate-400">NTTN Link ID:</span>
-                        <span class="text-amber-400 font-bold">{{ $ticket->nttn_link_id ?: ($ticket->link->nttn_link_id ?: ($ticket->link->circuit_id ?: $ticket->link->link_id)) }}</span>
+                        <span class="text-amber-400 font-bold">{{ $ticket->nttn_link_id ?: ($ticket->link->nttn_link_id ?: 'N/A') }}</span>
                     </div>
                     <div class="flex flex-col gap-0.5 pt-1 border-t border-slate-800/80">
                         <span class="text-slate-400">NOC Email:</span>

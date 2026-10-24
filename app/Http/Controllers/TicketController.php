@@ -6,6 +6,7 @@ use App\Mail\NttnIncidentTroubleTicketMail;
 use App\Models\ActivityLog;
 use App\Models\Link;
 use App\Models\Role;
+use App\Models\SystemSetting;
 use App\Models\Ticket;
 use App\Models\TicketMessage;
 use App\Models\User;
@@ -49,15 +50,7 @@ class TicketController extends Controller
 
     public static function getDefaultNttnEmail(?string $provider): string
     {
-        $provider = trim((string) $provider);
-
-        return match (true) {
-            stripos($provider, 'summit') !== false => 'noc@summitcommunications.net',
-            stripos($provider, 'fiber') !== false || stripos($provider, 'home') !== false => 'noc@fiberathome.net',
-            stripos($provider, 'bahon') !== false => 'noc@bahonltd.com',
-            stripos($provider, 'direct') !== false => 'noc@nttn-portal.local',
-            default => 'noc@summitcommunications.net',
-        };
+        return SystemSetting::getEmailForProvider($provider);
     }
 
     public function create(Request $request)
@@ -99,7 +92,7 @@ class TicketController extends Controller
         }
 
         $nttnProvider = ! empty($validated['nttn_provider']) ? trim($validated['nttn_provider']) : ($link->nttn_provider ?? 'Summit Communications');
-        $nttnLinkId = ! empty($validated['nttn_link_id']) ? trim($validated['nttn_link_id']) : ($link->nttn_link_id ?: ($link->circuit_id ?: $link->link_id));
+        $nttnLinkId = ! empty($validated['nttn_link_id']) ? trim($validated['nttn_link_id']) : ($link->nttn_link_id ?: 'N/A');
         $nttnEmail = ! empty($validated['nttn_provider_email']) ? trim($validated['nttn_provider_email']) : self::getDefaultNttnEmail($nttnProvider);
 
         // Update circuit nttn_link_id if not previously set

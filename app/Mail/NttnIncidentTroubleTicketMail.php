@@ -24,7 +24,7 @@ class NttnIncidentTroubleTicketMail extends Mailable
     public function envelope(): Envelope
     {
         $nttnCompany = $this->ticket->nttn_provider ?: ($this->link->nttn_provider ?? 'NTTN');
-        $nttnLinkId = $this->ticket->nttn_link_id ?: ($this->link->nttn_link_id ?: ($this->link->circuit_id ?: $this->link->link_id));
+        $nttnLinkId = $this->ticket->nttn_link_id ?: ($this->link->nttn_link_id ?: 'N/A');
         $priority = strtoupper($this->ticket->priority ?? 'NORMAL');
 
         return new Envelope(

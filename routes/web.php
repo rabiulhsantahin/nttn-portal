@@ -9,6 +9,7 @@ use App\Http\Controllers\ChatController;
 use App\Http\Controllers\CommissioningController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LinkController;
+use App\Http\Controllers\MailSettingController;
 use App\Http\Controllers\NocController;
 use App\Http\Controllers\ServiceRequestController;
 use App\Http\Controllers\SurveyController;
@@ -149,6 +150,12 @@ Route::middleware('auth')->group(function () {
         Route::delete('/backups/{filename}', [BackupController::class, 'destroy'])->name('backups.destroy');
         Route::post('/backups/settings', [BackupController::class, 'updateSettings'])->name('backups.settings');
         Route::post('/backups/restore', [BackupController::class, 'restore'])->name('backups.restore');
+
+        // NTTN Carrier Directory & Outgoing Mail Settings
+        Route::get('/mail-settings', [MailSettingController::class, 'index'])->name('admin.mail-settings.index');
+        Route::post('/mail-settings/providers', [MailSettingController::class, 'updateProviders'])->name('admin.mail-settings.providers');
+        Route::post('/mail-settings/smtp', [MailSettingController::class, 'updateSmtp'])->name('admin.mail-settings.smtp');
+        Route::post('/mail-settings/test', [MailSettingController::class, 'sendTest'])->name('admin.mail-settings.test');
 
         // Super Admin Data Deletion
         Route::delete('/surveys/{survey}', [SurveyController::class, 'destroy'])->name('surveys.destroy');

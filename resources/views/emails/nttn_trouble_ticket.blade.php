@@ -69,15 +69,7 @@
                                         <strong>NTTN Company Link ID:</strong>
                                     </td>
                                     <td style="padding: 12px 16px; border-bottom: 1px solid #1e293b; font-size: 16px; font-weight: 900; color: #f59e0b; font-family: monospace;">
-                                        {{ $ticket->nttn_link_id ?: ($link->nttn_link_id ?: ($link->circuit_id ?: $link->link_id)) }}
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td style="padding: 12px 16px; border-bottom: 1px solid #1e293b; font-size: 13px; color: #94a3b8;">
-                                        Internal Circuit Code:
-                                    </td>
-                                    <td style="padding: 12px 16px; border-bottom: 1px solid #1e293b; font-size: 13px; font-weight: 600; color: #e2e8f0; font-family: monospace;">
-                                        {{ $link->circuit_id ?? $link->link_id }} ({{ $link->link_id }})
+                                        {{ $ticket->nttn_link_id ?: ($link->nttn_link_id ?: 'N/A') }}
                                     </td>
                                 </tr>
                                 <tr>
@@ -171,7 +163,7 @@
                                     REQUIRED ACTION FROM NTTN CARRIER NOC:
                                 </div>
                                 <ul style="margin: 0; padding-left: 20px; font-size: 12px; color: #a7f3d0; line-height: 1.6;">
-                                    <li>Check optical power, OTDR distance, and fiber continuity for NTTN Link ID: <strong>{{ $ticket->nttn_link_id ?: ($link->nttn_link_id ?: ($link->circuit_id ?: $link->link_id)) }}</strong>.</li>
+                                    <li>Check optical power, OTDR distance, and fiber continuity for NTTN Link ID: <strong>{{ $ticket->nttn_link_id ?: ($link->nttn_link_id ?: 'N/A') }}</strong>.</li>
                                     <li>Dispatch fiber jointing / transmission field team if physical cut or high loss is detected.</li>
                                     <li>Reply to this email with your internal NTTN Fault Ticket # and ETR.</li>
                                 </ul>
