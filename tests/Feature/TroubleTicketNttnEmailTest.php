@@ -3,10 +3,12 @@
 namespace Tests\Feature;
 
 use App\Mail\NttnIncidentTroubleTicketMail;
+use App\Models\Customer;
 use App\Models\Link;
+use App\Models\Reseller;
+use App\Models\Role;
 use App\Models\Ticket;
 use App\Models\User;
-use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
@@ -15,18 +17,63 @@ class TroubleTicketNttnEmailTest extends TestCase
 {
     use RefreshDatabase;
 
+    private User $nocUser;
+
+    private Link $link;
+
     protected function setUp(): void
     {
         parent::setUp();
-        $this->seed(DatabaseSeeder::class);
+
+        $nocRole = Role::firstOrCreate(['name' => Role::NOC]);
+        $this->nocUser = User::firstOrCreate(
+            ['email' => 'noc@nttn.test'],
+            [
+                'role_id' => $nocRole->id,
+                'name' => 'NOC Engineer',
+                'password' => bcrypt('password'),
+                'is_active' => true,
+            ]
+        );
+
+        $resellerRole = Role::firstOrCreate(['name' => Role::RESELLER]);
+        $resellerUser = User::firstOrCreate(['email' => 'reseller@isp.test'], [
+            'role_id' => $resellerRole->id,
+            'name' => 'Reseller User',
+            'password' => bcrypt('password'),
+            'is_active' => true,
+        ]);
+        $reseller = Reseller::firstOrCreate(['user_id' => $resellerUser->id], [
+            'reseller_code' => 'RSL-1001',
+            'company_name' => 'Apex Fiber Net Ltd.',
+            'phone' => '+8801700000003',
+        ]);
+
+        $customer = Customer::firstOrCreate(
+            ['name' => 'Dhaka FinTech Tower Ltd.'],
+            [
+                'reseller_id' => $reseller->id,
+                'district' => 'Dhaka',
+                'address' => 'Motijheel Commercial Area',
+            ]
+        );
+
+        $this->link = Link::firstOrCreate(
+            ['link_id' => 'LNK-LEG-TEST01'],
+            [
+                'customer_id' => $customer->id,
+                'reseller_id' => $reseller->id,
+                'bandwidth_mbps' => 100,
+                'circuit_id' => 'CIR-TEST-001',
+                'nttn_provider' => 'Summit Communications',
+                'status' => Link::STATUS_ACTIVE,
+            ]
+        );
     }
 
     public function test_ticket_create_page_displays_nttn_provider_and_mail_fields(): void
     {
-        $nocUser = User::where('email', 'noc@nttn.test')->first();
-        $link = Link::first();
-
-        $response = $this->actingAs($nocUser)->get(route('tickets.create', ['link_id' => $link->id]));
+        $response = $this->actingAs($this->nocUser)->get(route('tickets.create', ['link_id' => $this->link->id]));
 
         $response->assertOk();
         $response->assertSee('NTTN Carrier Escalation &amp; NOC Notification', false);
@@ -40,11 +87,8 @@ class TroubleTicketNttnEmailTest extends TestCase
     {
         Mail::fake();
 
-        $nocUser = User::where('email', 'noc@nttn.test')->first();
-        $link = Link::first();
-
         $ticketData = [
-            'link_id' => $link->id,
+            'link_id' => $this->link->id,
             'type' => 'Total Optical Loss (Fiber Cut)',
             'priority' => 'CRITICAL',
             'description' => 'Major fiber core sheared near Magura Bypass junction. Urgent optical restoration required.',
@@ -54,7 +98,7 @@ class TroubleTicketNttnEmailTest extends TestCase
             'send_nttn_email' => '1',
         ];
 
-        $response = $this->actingAs($nocUser)->post(route('tickets.store'), $ticketData);
+        $response = $this->actingAs($this->nocUser)->post(route('tickets.store'), $ticketData);
 
         $ticket = Ticket::where('nttn_link_id', 'SUM-LNK-88201')->first();
         $this->assertNotNull($ticket);
@@ -78,11 +122,8 @@ class TroubleTicketNttnEmailTest extends TestCase
     {
         Mail::fake();
 
-        $nocUser = User::where('email', 'noc@nttn.test')->first();
-        $link = Link::first();
-
         $ticketData = [
-            'link_id' => $link->id,
+            'link_id' => $this->link->id,
             'type' => 'Interface Flapping',
             'priority' => 'LOW',
             'description' => 'Internal router testing only, no carrier intervention needed.',
@@ -92,7 +133,7 @@ class TroubleTicketNttnEmailTest extends TestCase
             'send_nttn_email' => '0',
         ];
 
-        $response = $this->actingAs($nocUser)->post(route('tickets.store'), $ticketData);
+        $response = $this->actingAs($this->nocUser)->post(route('tickets.store'), $ticketData);
 
         $ticket = Ticket::where('nttn_link_id', 'FAH-LNK-5501')->first();
         $this->assertNotNull($ticket);
@@ -105,13 +146,10 @@ class TroubleTicketNttnEmailTest extends TestCase
     {
         Mail::fake();
 
-        $nocUser = User::where('email', 'noc@nttn.test')->first();
-        $link = Link::first();
-
         $ticket = Ticket::create([
             'ticket_no' => 'TT-2026-TEST1',
-            'link_id' => $link->id,
-            'created_by' => $nocUser->id,
+            'link_id' => $this->link->id,
+            'created_by' => $this->nocUser->id,
             'type' => 'Total Optical Loss (Fiber Cut)',
             'priority' => 'HIGH',
             'description' => 'Attenuator fault.',
@@ -121,7 +159,7 @@ class TroubleTicketNttnEmailTest extends TestCase
             'status' => Ticket::STATUS_OPEN,
         ]);
 
-        $response = $this->actingAs($nocUser)->post(route('tickets.resend-nttn-email', $ticket), [
+        $response = $this->actingAs($this->nocUser)->post(route('tickets.resend-nttn-email', $ticket), [
             'email' => 'escalations@bahonltd.com',
         ]);
 
