@@ -3,6 +3,7 @@
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BackupController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\CommissioningController;
@@ -138,6 +139,14 @@ Route::middleware('auth')->group(function () {
         Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
         Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
         Route::post('/users/{user}/login-as', [UserController::class, 'impersonate'])->name('users.impersonate');
+
+        // Database Backup & Disaster Recovery
+        Route::get('/backups', [BackupController::class, 'index'])->name('backups.index');
+        Route::post('/backups', [BackupController::class, 'store'])->name('backups.store');
+        Route::post('/backups/email', [BackupController::class, 'sendEmail'])->name('backups.email');
+        Route::get('/backups/{filename}/download', [BackupController::class, 'download'])->name('backups.download');
+        Route::delete('/backups/{filename}', [BackupController::class, 'destroy'])->name('backups.destroy');
+        Route::post('/backups/settings', [BackupController::class, 'updateSettings'])->name('backups.settings');
 
         // Super Admin Data Deletion
         Route::delete('/surveys/{survey}', [SurveyController::class, 'destroy'])->name('surveys.destroy');
