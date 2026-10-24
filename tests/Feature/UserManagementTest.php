@@ -30,12 +30,12 @@ class UserManagementTest extends TestCase
         parent::setUp();
 
         $this->roles = [
-            Role::SUPER_ADMIN => Role::create(['name' => Role::SUPER_ADMIN]),
-            Role::MD => Role::create(['name' => Role::MD]),
-            Role::RESELLER => Role::create(['name' => Role::RESELLER]),
-            Role::TRANSMISSION => Role::create(['name' => Role::TRANSMISSION]),
-            Role::NOC => Role::create(['name' => Role::NOC]),
-            Role::BILLING => Role::create(['name' => Role::BILLING]),
+            Role::SUPER_ADMIN => Role::firstOrCreate(['name' => Role::SUPER_ADMIN]),
+            Role::MD => Role::firstOrCreate(['name' => Role::MD]),
+            Role::RESELLER => Role::firstOrCreate(['name' => Role::RESELLER]),
+            Role::TRANSMISSION => Role::firstOrCreate(['name' => Role::TRANSMISSION]),
+            Role::NOC => Role::firstOrCreate(['name' => Role::NOC]),
+            Role::BILLING => Role::firstOrCreate(['name' => Role::BILLING]),
         ];
 
         $this->superAdmin = User::create([
