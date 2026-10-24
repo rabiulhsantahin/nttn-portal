@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\PreventRequestForgery;
 use App\Mail\NttnIncidentTroubleTicketMail;
 use App\Models\Customer;
 use App\Models\Link;
@@ -9,6 +10,7 @@ use App\Models\Reseller;
 use App\Models\Role;
 use App\Models\Ticket;
 use App\Models\User;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
@@ -24,6 +26,11 @@ class TroubleTicketNttnEmailTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        $this->withoutMiddleware([
+            PreventRequestForgery::class,
+            ValidateCsrfToken::class,
+        ]);
 
         $nocRole = Role::firstOrCreate(['name' => Role::NOC]);
         $this->nocUser = User::firstOrCreate(
