@@ -289,10 +289,22 @@
                                 </a>
                                 <div class="text-xs text-slate-400">{{ $rev->link->link_id }}</div>
                                 <div class="text-[10px] text-blue-400 font-bold mt-0.5">{{ $rev->link->bandwidth_mbps }} Mbps ({{ $rev->link->nttn_provider }})</div>
+                                @if($rev->new_nttn_provider && $rev->new_nttn_provider !== $rev->link->nttn_provider)
+                                    <div class="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-[10px] font-bold">
+                                        <span>New Carrier &rarr;</span>
+                                        <span>{{ $rev->new_nttn_provider }}</span>
+                                    </div>
+                                @endif
                             </td>
                             <td class="px-6 py-4">
                                 <div class="text-white font-bold">{{ $rev->link->customer->name }}</div>
                                 <div class="text-xs text-violet-300 font-semibold">{{ $rev->link->reseller->company_name }}</div>
+                                @if($rev->new_reseller_id && $rev->new_reseller_id != $rev->link->reseller_id)
+                                    <div class="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[10px] font-bold">
+                                        <span>New Reseller &rarr;</span>
+                                        <span>{{ $rev->newReseller->company_name ?? 'Reseller #'.$rev->new_reseller_id }}</span>
+                                    </div>
+                                @endif
                             </td>
                             <td class="px-6 py-4 font-mono">
                                 <div class="flex items-center gap-2 flex-wrap">
@@ -316,13 +328,13 @@
                             </td>
                             <td class="px-6 py-4 text-right">
                                 <div class="flex items-center justify-end gap-2">
-                                    <form method="POST" action="{{ route('approvals.rate-revisions.decide', $rev) }}" onsubmit="return confirm('Confirm rate revision for Circuit {{ $rev->link->circuit_id ?? $rev->link->link_id }}? The new monthly rate of ৳ {{ number_format($rev->new_monthly_charge, 2) }} will immediately be reflected in {{ $rev->link->reseller->company_name }}\'s portal.');">
+                                    <form method="POST" action="{{ route('approvals.rate-revisions.decide', $rev) }}" onsubmit="return confirm('Confirm revision for Circuit {{ $rev->link->circuit_id ?? $rev->link->link_id }}? The new monthly rate of ৳ {{ number_format($rev->new_monthly_charge, 2) }} and any proposed reseller/carrier changes will take effect immediately.');">
                                         @csrf
                                         <input type="hidden" name="decision" value="approve">
-                                        <input type="hidden" name="remarks" value="Approved by MD. Rate updated.">
+                                        <input type="hidden" name="remarks" value="Approved by MD. Rate and circuit details updated.">
                                         <button type="submit" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md transition-all flex items-center gap-1.5">
                                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                                            <span>Approve & Update Rate</span>
+                                            <span>Approve & Apply</span>
                                         </button>
                                     </form>
 

@@ -329,4 +329,103 @@ class CircuitRateRevisionWorkflowTest extends TestCase
         $revision = BillingRateRevision::where('link_id', $link->id)->first();
         $this->assertEquals(BillingRateRevision::STATUS_APPROVED, $revision->status);
     }
+
+    public function test_billing_can_propose_reseller_and_nttn_carrier_edit_which_remains_pending_until_md_approves(): void
+    {
+        $link = $this->createActiveCircuit($this->reseller1, 35000.00);
+        $this->assertEquals($this->reseller1->id, $link->reseller_id);
+        $this->assertEquals('Bahon', $link->nttn_provider);
+
+        // Propose changing rate to 30000, reseller to reseller2, and carrier to Summit Communications
+        $response = $this->actingAs($this->billingUser)->post(route('billing.links.revise-rate', $link), [
+            'monthly_charge' => 30000.00,
+            'reseller_id' => $this->reseller2->id,
+            'nttn_provider' => 'Summit Communications',
+            'reason' => 'Transferring circuit to Delta reseller on Summit network as per MD memo #77.',
+        ]);
+
+        $response->assertRedirect(route('billing.index'));
+
+        // Revision is pending
+        $revision = BillingRateRevision::where('link_id', $link->id)->first();
+        $this->assertNotNull($revision);
+        $this->assertEquals(BillingRateRevision::STATUS_PENDING, $revision->status);
+        $this->assertEquals($this->reseller1->id, $revision->old_reseller_id);
+        $this->assertEquals($this->reseller2->id, $revision->new_reseller_id);
+        $this->assertEquals('Bahon', $revision->old_nttn_provider);
+        $this->assertEquals('Summit Communications', $revision->new_nttn_provider);
+
+        // Crucial: Link itself MUST REMAIN UNCHANGED until MD approves!
+        $link->refresh();
+        $this->assertEquals($this->reseller1->id, $link->reseller_id);
+        $this->assertEquals('Bahon', $link->nttn_provider);
+        $this->assertEquals(35000.00, (float) $link->billing->monthly_charge);
+
+        // MD views approvals desk and sees proposed reseller and carrier
+        $approvalsDesk = $this->actingAs($this->mdUser)->get(route('approvals.index'));
+        $approvalsDesk->assertStatus(200);
+        $approvalsDesk->assertSee('New Reseller');
+        $approvalsDesk->assertSee('Delta Communications Ltd.');
+        $approvalsDesk->assertSee('New Carrier');
+        $approvalsDesk->assertSee('Summit Communications');
+
+        // MD approves the revision
+        $approveResponse = $this->actingAs($this->mdUser)->post(route('approvals.rate-revisions.decide', $revision), [
+            'decision' => 'approve',
+            'remarks' => 'Approved transfer and rate adjustment.',
+        ]);
+
+        $approveResponse->assertRedirect(route('approvals.index'));
+
+        // Verify link is now updated to the new reseller and NTTN carrier
+        $link->refresh();
+        $this->assertEquals($this->reseller2->id, $link->reseller_id);
+        $this->assertEquals('Summit Communications', $link->nttn_provider);
+        $this->assertEquals(30000.00, (float) $link->billing->monthly_charge);
+    }
+
+    public function test_md_direct_approval_immediately_updates_reseller_and_nttn_carrier(): void
+    {
+        $link = $this->createActiveCircuit($this->reseller1, 35000.00);
+
+        $response = $this->actingAs($this->mdUser)->post(route('billing.links.revise-rate', $link), [
+            'monthly_charge' => 32000.00,
+            'reseller_id' => $this->reseller2->id,
+            'nttn_provider' => 'Fiber@Home',
+            'reason' => 'Direct reseller migration by MD.',
+            'direct_approve' => 1,
+        ]);
+
+        $response->assertRedirect(route('billing.index'));
+
+        $link->refresh();
+        $this->assertEquals($this->reseller2->id, $link->reseller_id);
+        $this->assertEquals('Fiber@Home', $link->nttn_provider);
+        $this->assertEquals(32000.00, (float) $link->billing->monthly_charge);
+    }
+
+    public function test_md_rejection_leaves_reseller_and_nttn_carrier_unchanged(): void
+    {
+        $link = $this->createActiveCircuit($this->reseller1, 35000.00);
+
+        $this->actingAs($this->billingUser)->post(route('billing.links.revise-rate', $link), [
+            'monthly_charge' => 29000.00,
+            'reseller_id' => $this->reseller2->id,
+            'nttn_provider' => 'Fiber@Home',
+            'reason' => 'Transfer request.',
+        ]);
+
+        $revision = BillingRateRevision::where('link_id', $link->id)->first();
+
+        // MD rejects
+        $this->actingAs($this->mdUser)->post(route('approvals.rate-revisions.decide', $revision), [
+            'decision' => 'reject',
+            'remarks' => 'Transfer not permitted.',
+        ]);
+
+        $link->refresh();
+        $this->assertEquals($this->reseller1->id, $link->reseller_id);
+        $this->assertEquals('Bahon', $link->nttn_provider);
+        $this->assertEquals(35000.00, (float) $link->billing->monthly_charge);
+    }
 }

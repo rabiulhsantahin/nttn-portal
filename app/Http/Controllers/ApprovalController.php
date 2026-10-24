@@ -35,7 +35,7 @@ class ApprovalController extends Controller
             ->latest()
             ->paginate(10);
 
-        $pendingRateRevisions = BillingRateRevision::with(['link.customer', 'link.reseller', 'billing', 'requester'])
+        $pendingRateRevisions = BillingRateRevision::with(['link.customer', 'link.reseller', 'billing', 'requester', 'oldReseller', 'newReseller'])
             ->where('status', BillingRateRevision::STATUS_PENDING)
             ->latest()
             ->paginate(10);
@@ -298,7 +298,7 @@ class ApprovalController extends Controller
                 'status' => BillingRateRevision::STATUS_APPROVED,
                 'approved_by' => $user->id,
                 'approved_at' => now(),
-                'remarks' => $remarks ?? 'Approved by MD. Rate updated in billing ledger and reseller portal.',
+                'remarks' => $remarks ?? 'Approved by MD. Rate and circuit details updated in billing ledger and reseller portal.',
             ]);
 
             $revision->billing->update([
@@ -308,6 +308,18 @@ class ApprovalController extends Controller
                 'completed_by' => $user->id,
             ]);
 
+            $linkUpdates = [];
+            if ($revision->new_reseller_id && $revision->new_reseller_id != $link->reseller_id) {
+                $linkUpdates['reseller_id'] = $revision->new_reseller_id;
+            }
+            if ($revision->new_nttn_provider !== null && $revision->new_nttn_provider !== '' && $revision->new_nttn_provider !== $link->nttn_provider) {
+                $linkUpdates['nttn_provider'] = $revision->new_nttn_provider;
+            }
+            if (! empty($linkUpdates)) {
+                $link->update($linkUpdates);
+                $link->refresh();
+            }
+
             Approval::updateOrCreate(
                 [
                     'entity_type' => 'rate_revision',
@@ -316,11 +328,13 @@ class ApprovalController extends Controller
                 ],
                 [
                     'status' => Approval::STATUS_APPROVED,
-                    'remarks' => $remarks ?? 'Approved by MD. Commercial monthly rate revised.',
+                    'remarks' => $remarks ?? 'Approved by MD. Commercial monthly rate and circuit assignment revised.',
                     'approved_by' => $user->id,
                     'approved_at' => now(),
                 ]
             );
+
+            $resellerCompany = $link->reseller?->company_name ?? 'Reseller';
 
             ActivityLog::record(
                 entityType: 'link',
@@ -328,12 +342,20 @@ class ApprovalController extends Controller
                 action: 'RATE_REVISION_APPROVED_BY_MD',
                 fromStatus: null,
                 toStatus: null,
-                remarks: "MD approved rate revision for {$circuitCode}: ৳ ".number_format($revision->old_monthly_charge, 2).' → ৳ '.number_format($revision->new_monthly_charge, 2).". Live in {$link->reseller->company_name}'s reseller portal.",
+                remarks: "MD approved rate revision for {$circuitCode}: ৳ ".number_format($revision->old_monthly_charge, 2).' → ৳ '.number_format($revision->new_monthly_charge, 2).". Live in {$resellerCompany}'s portal.",
                 userId: $user->id
             );
 
+            $successMsg = "Rate revision for Circuit {$circuitCode} approved! The new rate (৳ ".number_format($revision->new_monthly_charge, 2).") is now active in {$resellerCompany}'s portal.";
+            if (! empty($linkUpdates['reseller_id'])) {
+                $successMsg .= " Reseller updated to {$resellerCompany}.";
+            }
+            if (! empty($linkUpdates['nttn_provider'])) {
+                $successMsg .= " Carrier updated to {$link->nttn_provider}.";
+            }
+
             return redirect()->route('approvals.index')
-                ->with('success', "Rate revision for Circuit {$circuitCode} approved! The new rate (৳ ".number_format($revision->new_monthly_charge, 2).") is now active in {$link->reseller->company_name}'s portal.");
+                ->with('success', $successMsg);
         }
 
         if ($decision === 'reject') {

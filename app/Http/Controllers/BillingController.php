@@ -342,8 +342,9 @@ class BillingController extends Controller
         }
 
         $link->load(['customer', 'reseller', 'billing', 'pendingRateRevision', 'rateRevisions.requester', 'rateRevisions.approver']);
+        $resellers = Reseller::orderBy('company_name')->get();
 
-        return view('billing.edit_rate', compact('link'));
+        return view('billing.edit_rate', compact('link', 'resellers'));
     }
 
     public function submitRateRevision(Request $request, Link $link)
@@ -360,7 +361,17 @@ class BillingController extends Controller
             'effective_date' => ['nullable', 'date'],
             'reason' => ['required', 'string', 'max:1000'],
             'direct_approve' => ['nullable', 'boolean'],
+            'reseller_id' => ['nullable', 'exists:resellers,id'],
+            'nttn_provider' => ['nullable', 'string', 'max:120'],
         ]);
+
+        $oldResellerId = $link->reseller_id;
+        $newResellerId = ! empty($validated['reseller_id']) ? (int) $validated['reseller_id'] : $oldResellerId;
+
+        $oldNttnProvider = $link->nttn_provider;
+        $newNttnProvider = array_key_exists('nttn_provider', $validated) && $validated['nttn_provider'] !== null
+            ? trim($validated['nttn_provider'])
+            : $oldNttnProvider;
 
         $billing = $link->billing ?? Billing::firstOrCreate(['link_id' => $link->id], [
             'installation_charge' => 0,
@@ -389,11 +400,27 @@ class BillingController extends Controller
                 'completed_by' => $user->id,
             ]);
 
+            $linkUpdates = [];
+            if ($newResellerId && $newResellerId !== $link->reseller_id) {
+                $linkUpdates['reseller_id'] = $newResellerId;
+            }
+            if ($newNttnProvider !== null && $newNttnProvider !== $link->nttn_provider) {
+                $linkUpdates['nttn_provider'] = $newNttnProvider;
+            }
+            if (! empty($linkUpdates)) {
+                $link->update($linkUpdates);
+                $link->refresh();
+            }
+
             BillingRateRevision::create([
                 'link_id' => $link->id,
                 'billing_id' => $billing->id,
                 'requested_by' => $user->id,
                 'approved_by' => $user->id,
+                'old_reseller_id' => $oldResellerId,
+                'new_reseller_id' => $newResellerId,
+                'old_nttn_provider' => $oldNttnProvider,
+                'new_nttn_provider' => $newNttnProvider,
                 'old_monthly_charge' => $oldMonthly,
                 'new_monthly_charge' => $newMonthly,
                 'old_installation_charge' => $oldInstallation,
@@ -407,12 +434,22 @@ class BillingController extends Controller
                 'approved_at' => now(),
             ]);
 
+            $approvalRemarks = "Circuit {$circuitCode} rate directly updated: ৳ ".number_format($oldMonthly, 2).' → ৳ '.number_format($newMonthly, 2);
+            if ($newResellerId && $newResellerId != $oldResellerId) {
+                $newResellerName = Reseller::find($newResellerId)?->company_name ?? 'Reseller #'.$newResellerId;
+                $approvalRemarks .= " | Reseller: {$link->reseller->company_name} → {$newResellerName}";
+            }
+            if ($newNttnProvider && $newNttnProvider !== $oldNttnProvider) {
+                $approvalRemarks .= ' | Carrier: '.($oldNttnProvider ?: 'None')." → {$newNttnProvider}";
+            }
+            $approvalRemarks .= ". Reason: {$validated['reason']}";
+
             Approval::create([
                 'entity_type' => 'rate_revision',
                 'entity_id' => $link->id,
                 'approval_stage' => Approval::STAGE_MD_RATE_REVISION,
                 'status' => Approval::STATUS_APPROVED,
-                'remarks' => "Circuit {$circuitCode} rate directly updated: ৳ ".number_format($oldMonthly, 2).' → ৳ '.number_format($newMonthly, 2).". Reason: {$validated['reason']}",
+                'remarks' => $approvalRemarks,
                 'approved_by' => $user->id,
                 'approved_at' => now(),
             ]);
@@ -423,15 +460,15 @@ class BillingController extends Controller
                 action: 'CIRCUIT_RATE_DIRECTLY_UPDATED',
                 fromStatus: null,
                 toStatus: null,
-                remarks: "Circuit {$circuitCode} rate updated from ৳ ".number_format($oldMonthly, 2).' to ৳ '.number_format($newMonthly, 2).". Live in {$link->reseller->company_name}'s portal.",
+                remarks: "Circuit {$circuitCode} updated directly: ৳ ".number_format($oldMonthly, 2).' → ৳ '.number_format($newMonthly, 2).". Live in {$link->reseller->company_name}'s portal.",
                 userId: $user->id
             );
 
             return redirect()->route('billing.index')
-                ->with('success', "Rate for Circuit {$circuitCode} directly updated to ৳ ".number_format($newMonthly, 2)." and is now live in {$link->reseller->company_name}'s portal!");
+                ->with('success', "Rate and details for Circuit {$circuitCode} directly updated to ৳ ".number_format($newMonthly, 2)." and live in {$link->reseller->company_name}'s portal!");
         }
 
-        // Submitting for MD Approval: Keep current billing rate unchanged!
+        // Submitting for MD Approval: Keep current link and billing rate unchanged!
         BillingRateRevision::where('link_id', $link->id)
             ->where('status', BillingRateRevision::STATUS_PENDING)
             ->update([
@@ -444,6 +481,10 @@ class BillingController extends Controller
             'billing_id' => $billing->id,
             'requested_by' => $user->id,
             'approved_by' => null,
+            'old_reseller_id' => $oldResellerId,
+            'new_reseller_id' => $newResellerId,
+            'old_nttn_provider' => $oldNttnProvider,
+            'new_nttn_provider' => $newNttnProvider,
             'old_monthly_charge' => (float) $billing->monthly_charge,
             'new_monthly_charge' => (float) $validated['monthly_charge'],
             'old_installation_charge' => (float) $billing->installation_charge,
@@ -455,12 +496,22 @@ class BillingController extends Controller
             'status' => BillingRateRevision::STATUS_PENDING,
         ]);
 
+        $approvalRemarks = "Proposed rate revision for Circuit {$circuitCode}: ৳ ".number_format($billing->monthly_charge, 2).' → ৳ '.number_format($validated['monthly_charge'], 2);
+        if ($newResellerId && $newResellerId != $oldResellerId) {
+            $newResellerName = Reseller::find($newResellerId)?->company_name ?? 'Reseller #'.$newResellerId;
+            $approvalRemarks .= " | Proposed Reseller: {$link->reseller->company_name} → {$newResellerName}";
+        }
+        if ($newNttnProvider && $newNttnProvider !== $oldNttnProvider) {
+            $approvalRemarks .= ' | Proposed Carrier: '.($oldNttnProvider ?: 'None')." → {$newNttnProvider}";
+        }
+        $approvalRemarks .= ". Reason: {$validated['reason']}";
+
         Approval::create([
             'entity_type' => 'rate_revision',
             'entity_id' => $revision->id,
             'approval_stage' => Approval::STAGE_MD_RATE_REVISION,
             'status' => Approval::STATUS_PENDING,
-            'remarks' => "Proposed rate revision for Circuit {$circuitCode}: ৳ ".number_format($billing->monthly_charge, 2).' → ৳ '.number_format($validated['monthly_charge'], 2).". Reason: {$validated['reason']}",
+            'remarks' => $approvalRemarks,
         ]);
 
         ActivityLog::record(
@@ -469,7 +520,7 @@ class BillingController extends Controller
             action: 'CIRCUIT_RATE_REVISION_REQUESTED',
             fromStatus: null,
             toStatus: null,
-            remarks: "Billing requested rate revision for Circuit {$circuitCode}: ৳ ".number_format($billing->monthly_charge, 2).' → ৳ '.number_format($validated['monthly_charge'], 2).'. Awaiting MD approval.',
+            remarks: "Billing requested revision for Circuit {$circuitCode}: ৳ ".number_format($billing->monthly_charge, 2).' → ৳ '.number_format($validated['monthly_charge'], 2).'. Awaiting MD approval.',
             userId: $user->id
         );
 

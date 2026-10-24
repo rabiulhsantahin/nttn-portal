@@ -121,6 +121,45 @@
                     </div>
                 </div>
 
+                <!-- Reseller Assignment -->
+                <div class="space-y-1.5">
+                    <label for="reseller_id" class="block text-xs font-semibold uppercase text-slate-300">
+                        Reseller Assignment (রেসেলার)
+                    </label>
+                    <select name="reseller_id" id="reseller_id"
+                        class="w-full px-4 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm font-medium text-white focus:outline-none focus:border-violet-500">
+                        @foreach($resellers as $reseller)
+                            <option value="{{ $reseller->id }}" {{ (string) old('reseller_id', $link->reseller_id) === (string) $reseller->id ? 'selected' : '' }}>
+                                {{ $reseller->company_name }} ({{ $reseller->reseller_code }})
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="text-[11px] text-slate-500">Proposed reseller change takes effect upon MD approval.</p>
+                </div>
+
+                <!-- NTTN Carrier / Provider -->
+                <div class="space-y-1.5">
+                    <label for="nttn_provider" class="block text-xs font-semibold uppercase text-slate-300">
+                        NTTN Carrier / Provider (এনটিটিএন কোম্পানি)
+                    </label>
+                    @php
+                        $standardProviders = ['Summit Communications', 'Fiber@Home', 'Bahon Limited', 'Direct Ring Core', 'Other NTTN'];
+                        $currentProvider = old('nttn_provider', $link->nttn_provider);
+                    @endphp
+                    <select name="nttn_provider" id="nttn_provider"
+                        class="w-full px-4 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm font-medium text-white focus:outline-none focus:border-cyan-500">
+                        @if($currentProvider && !in_array($currentProvider, $standardProviders))
+                            <option value="{{ $currentProvider }}" selected>{{ $currentProvider }}</option>
+                        @endif
+                        @foreach($standardProviders as $provider)
+                            <option value="{{ $provider }}" {{ $currentProvider === $provider ? 'selected' : '' }}>
+                                {{ $provider }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="text-[11px] text-slate-500">Proposed carrier change takes effect upon MD approval.</p>
+                </div>
+
                 <!-- Effective Date -->
                 <div class="space-y-1.5 sm:col-span-2">
                     <label for="effective_date" class="block text-xs font-semibold uppercase text-slate-300">

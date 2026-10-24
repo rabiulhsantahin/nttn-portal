@@ -214,7 +214,7 @@
                                 </span>
                                 @if(! $isReseller)
                                     <div class="mt-2">
-                                        <button type="button" onclick="openRateModal({{ $l->id }}, '{{ $l->circuit_id ?? $l->link_id }}', '{{ addslashes($l->customer->name) }}', {{ (float) ($l->billing?->monthly_charge ?? 0) }}, {{ (float) ($l->billing?->installation_charge ?? 0) }}, {{ (float) ($l->billing?->nttn_cost ?? 0) }}, {{ (int) $l->bandwidth_mbps }})"
+                                        <button type="button" onclick="openRateModal({{ $l->id }}, '{{ $l->circuit_id ?? $l->link_id }}', '{{ addslashes($l->customer->name) }}', {{ (float) ($l->billing?->monthly_charge ?? 0) }}, {{ (float) ($l->billing?->installation_charge ?? 0) }}, {{ (float) ($l->billing?->nttn_cost ?? 0) }}, {{ (int) $l->bandwidth_mbps }}, {{ (int) $l->reseller_id }}, '{{ addslashes($l->nttn_provider ?? '') }}')"
                                             class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-bold transition-all shadow-sm">
                                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                                             <span>Edit Rate</span>
@@ -671,6 +671,33 @@
                     </div>
                 </div>
 
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="space-y-1">
+                        <label for="modal_reseller_id" class="block font-semibold uppercase text-slate-300">
+                            Reseller (রেসেলার)
+                        </label>
+                        <select name="reseller_id" id="modal_reseller_id"
+                            class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white font-medium focus:outline-none focus:border-violet-500">
+                            @foreach($resellers as $reseller)
+                                <option value="{{ $reseller->id }}">{{ $reseller->company_name }} ({{ $reseller->reseller_code }})</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="space-y-1">
+                        <label for="modal_nttn_provider" class="block font-semibold uppercase text-slate-300">
+                            NTTN Carrier (এনটিটিএন কোম্পানি)
+                        </label>
+                        <select name="nttn_provider" id="modal_nttn_provider"
+                            class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white font-medium focus:outline-none focus:border-cyan-500">
+                            <option value="Summit Communications">Summit Communications</option>
+                            <option value="Fiber@Home">Fiber@Home</option>
+                            <option value="Bahon Limited">Bahon Limited</option>
+                            <option value="Direct Ring Core">Direct Ring Core</option>
+                            <option value="Other NTTN">Other NTTN</option>
+                        </select>
+                    </div>
+                </div>
+
                 <div class="space-y-1">
                     <label for="modal_effective_date" class="block font-semibold uppercase text-slate-300">
                         Effective Billing Date
@@ -721,7 +748,7 @@
 
         document.getElementById('modal_monthly_charge')?.addEventListener('input', updateProposedUnitPrice);
 
-        function openRateModal(linkId, circuitId, customerName, currentMonthly, currentInstallation, currentNttnCost, bandwidth) {
+        function openRateModal(linkId, circuitId, customerName, currentMonthly, currentInstallation, currentNttnCost, bandwidth, resellerId, nttnProvider) {
             modalActiveBandwidth = bandwidth || 0;
             const form = document.getElementById('rate_modal_form');
             form.action = `/billing/links/${linkId}/revise-rate`;
@@ -734,6 +761,28 @@
             document.getElementById('modal_monthly_charge').value = currentMonthly;
             document.getElementById('modal_installation_charge').value = currentInstallation;
             document.getElementById('modal_nttn_cost').value = currentNttnCost;
+            if (document.getElementById('modal_reseller_id')) {
+                document.getElementById('modal_reseller_id').value = resellerId || '';
+            }
+            if (document.getElementById('modal_nttn_provider')) {
+                const nttnEl = document.getElementById('modal_nttn_provider');
+                if (nttnProvider) {
+                    let exists = false;
+                    for (let i = 0; i < nttnEl.options.length; i++) {
+                        if (nttnEl.options[i].value === nttnProvider) {
+                            exists = true;
+                            break;
+                        }
+                    }
+                    if (!exists) {
+                        const opt = document.createElement('option');
+                        opt.value = nttnProvider;
+                        opt.textContent = nttnProvider;
+                        nttnEl.appendChild(opt);
+                    }
+                    nttnEl.value = nttnProvider;
+                }
+            }
             document.getElementById('modal_reason').value = '';
             updateProposedUnitPrice();
 

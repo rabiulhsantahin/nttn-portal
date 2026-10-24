@@ -18,6 +18,10 @@ class BillingRateRevision extends Model
         'billing_id',
         'requested_by',
         'approved_by',
+        'old_reseller_id',
+        'new_reseller_id',
+        'old_nttn_provider',
+        'new_nttn_provider',
         'old_monthly_charge',
         'new_monthly_charge',
         'old_installation_charge',
@@ -63,6 +67,16 @@ class BillingRateRevision extends Model
     public function approver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function oldReseller(): BelongsTo
+    {
+        return $this->belongsTo(Reseller::class, 'old_reseller_id');
+    }
+
+    public function newReseller(): BelongsTo
+    {
+        return $this->belongsTo(Reseller::class, 'new_reseller_id');
     }
 
     public function isPending(): bool
