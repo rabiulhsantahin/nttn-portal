@@ -156,7 +156,20 @@
                             <div class="max-w-xl rounded-2xl p-4 text-xs leading-relaxed shadow-md
                                 {{ $isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-slate-950 text-slate-200 rounded-tl-none border border-slate-800' }}">
                                 @if($msg->message)
-                                    <div class="whitespace-pre-wrap">{{ $msg->message }}</div>
+                                    @php
+                                        $displayMsg = $msg->message;
+                                        if (auth()->user()->isReseller()) {
+                                            $internalId = $ticket->link->circuit_id ?: $ticket->link->link_id;
+                                            if (!empty($ticket->nttn_link_id)) {
+                                                $displayMsg = str_ireplace('with NTTN Link ID: ' . $ticket->nttn_link_id, 'for Circuit: ' . $internalId, $displayMsg);
+                                                $displayMsg = str_ireplace('NTTN Link ID: ' . $ticket->nttn_link_id, 'Circuit: ' . $internalId, $displayMsg);
+                                                $displayMsg = str_ireplace($ticket->nttn_link_id, $internalId, $displayMsg);
+                                            }
+                                            $displayMsg = preg_replace('/with NTTN Link ID:\s*[^.\s,]+/i', 'for Circuit: ' . $internalId, $displayMsg);
+                                            $displayMsg = preg_replace('/NTTN Link ID:\s*[^.\s,]+/i', 'Circuit: ' . $internalId, $displayMsg);
+                                        }
+                                    @endphp
+                                    <div class="whitespace-pre-wrap">{{ $displayMsg }}</div>
                                 @endif
 
                                 @if($msg->attachment_path)
@@ -232,6 +245,7 @@
         <!-- Right: NOC / Engineer Action Panel OR Locked Read-Only Notice (1 Col) -->
         <div class="space-y-6">
 
+            @if(!auth()->user()->isReseller())
             <!-- NTTN Carrier Escalation Card -->
             <div class="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
                 <div class="border-b border-slate-800 pb-3 flex items-center justify-between">
@@ -271,21 +285,20 @@
                     @endif
                 </div>
 
-                @if(!auth()->user()->isReseller())
-                    <form method="POST" action="{{ route('tickets.resend-nttn-email', $ticket) }}" class="space-y-2 pt-1">
-                        @csrf
-                        <div class="relative">
-                            <input type="text" name="email" value="{{ $ticket->nttn_provider_email ?: \App\Http\Controllers\TicketController::getDefaultNttnEmail($ticket->nttn_provider) }}" 
-                                placeholder="Carrier NOC mail..."
-                                class="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500">
-                        </div>
-                        <button type="submit" class="w-full py-2 bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-500/30 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                            <span>{{ $ticket->nttn_email_sent_at ? 'Re-send Email to NTTN NOC' : 'Send Escalation Email to NTTN' }}</span>
-                        </button>
-                    </form>
-                @endif
+                <form method="POST" action="{{ route('tickets.resend-nttn-email', $ticket) }}" class="space-y-2 pt-1">
+                    @csrf
+                    <div class="relative">
+                        <input type="text" name="email" value="{{ $ticket->nttn_provider_email ?: \App\Http\Controllers\TicketController::getDefaultNttnEmail($ticket->nttn_provider) }}" 
+                            placeholder="Carrier NOC mail..."
+                            class="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500">
+                    </div>
+                    <button type="submit" class="w-full py-2 bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-500/30 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                        <span>{{ $ticket->nttn_email_sent_at ? 'Re-send Email to NTTN NOC' : 'Send Escalation Email to NTTN' }}</span>
+                    </button>
+                </form>
             </div>
+            @endif
 
             @if($ticket->isLocked())
                 <!-- Permanently Locked Card -->

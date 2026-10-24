@@ -11,6 +11,7 @@ use App\Models\Reseller;
 use App\Models\Role;
 use App\Models\SystemSetting;
 use App\Models\Ticket;
+use App\Models\TicketMessage;
 use App\Models\User;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -22,6 +23,8 @@ class TroubleTicketNttnEmailTest extends TestCase
     use RefreshDatabase;
 
     private User $nocUser;
+
+    private User $resellerUser;
 
     private Link $link;
 
@@ -46,13 +49,13 @@ class TroubleTicketNttnEmailTest extends TestCase
         );
 
         $resellerRole = Role::firstOrCreate(['name' => Role::RESELLER]);
-        $resellerUser = User::firstOrCreate(['email' => 'reseller@isp.test'], [
+        $this->resellerUser = User::firstOrCreate(['email' => 'reseller@isp.test'], [
             'role_id' => $resellerRole->id,
             'name' => 'Reseller User',
             'password' => bcrypt('password'),
             'is_active' => true,
         ]);
-        $reseller = Reseller::firstOrCreate(['user_id' => $resellerUser->id], [
+        $reseller = Reseller::firstOrCreate(['user_id' => $this->resellerUser->id], [
             'reseller_code' => 'RSL-1001',
             'company_name' => 'Apex Fiber Net Ltd.',
             'phone' => '+8801700000003',
@@ -240,5 +243,51 @@ class TroubleTicketNttnEmailTest extends TestCase
         $this->assertStringNotContainsString('CIR-TEST-001', $renderedHtml);
         $this->assertStringNotContainsString('LNK-LEG-TEST01', $renderedHtml);
         $this->assertStringNotContainsString('Internal Circuit Code', $renderedHtml);
+    }
+
+    public function test_reseller_create_ticket_form_hides_carrier_escalation_card_visually(): void
+    {
+        $response = $this->actingAs($this->resellerUser)->get(route('tickets.create', ['link_id' => $this->link->id]));
+
+        $response->assertOk();
+        $response->assertDontSee('NTTN Carrier Escalation &amp; NOC Notification', false);
+        $response->assertDontSee('Carrier NTTN Link ID');
+        $response->assertSee('type="hidden" name="nttn_provider"', false);
+        $response->assertSee('type="hidden" name="nttn_link_id"', false);
+    }
+
+    public function test_reseller_ticket_show_page_hides_carrier_sidebar_and_replaces_nttn_link_id_with_internal_circuit_id_in_chat(): void
+    {
+        $ticket = Ticket::create([
+            'ticket_no' => 'TT-2026-RSL01',
+            'link_id' => $this->link->id,
+            'created_by' => $this->resellerUser->id,
+            'type' => 'Total Optical Loss (Fiber Cut)',
+            'priority' => 'HIGH',
+            'description' => 'Hi Nttn Team Greeting Link Down',
+            'nttn_provider' => 'Bahon Limited',
+            'nttn_link_id' => 'AIKDBW0032P/S',
+            'nttn_provider_email' => 'nmasum54@gmail.com',
+            'status' => Ticket::STATUS_OPEN,
+        ]);
+
+        TicketMessage::create([
+            'ticket_id' => $ticket->id,
+            'user_id' => $this->resellerUser->id,
+            'message' => 'Automated NTTN fault escalation dispatched to Bahon Limited NOC (nmasum54@gmail.com) with NTTN Link ID: AIKDBW0032P/S.',
+        ]);
+
+        // Reseller viewing ticket
+        $resellerResponse = $this->actingAs($this->resellerUser)->get(route('tickets.show', $ticket));
+        $resellerResponse->assertOk();
+        $resellerResponse->assertDontSee('AIKDBW0032P/S');
+        $resellerResponse->assertDontSee('NTTN Carrier Escalation');
+        $resellerResponse->assertSee('for Circuit: CIR-TEST-001');
+
+        // NOC Engineer viewing ticket can see Carrier Escalation card
+        $nocResponse = $this->actingAs($this->nocUser)->get(route('tickets.show', $ticket));
+        $nocResponse->assertOk();
+        $nocResponse->assertSee('NTTN Carrier Escalation');
+        $nocResponse->assertSee('AIKDBW0032P/S');
     }
 }

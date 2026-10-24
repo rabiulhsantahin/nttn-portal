@@ -143,10 +143,11 @@ class TicketController extends Controller
                     $ticket->update(['nttn_email_sent_at' => now()]);
                     $emailDispatched = true;
 
+                    $internalCircuitId = $link->circuit_id ?: $link->link_id;
                     TicketMessage::create([
                         'ticket_id' => $ticket->id,
                         'user_id' => Auth::id(),
-                        'message' => "Automated NTTN fault escalation dispatched to {$nttnProvider} NOC ({$nttnEmail}) with NTTN Link ID: {$nttnLinkId}.",
+                        'message' => "Automated NTTN fault escalation dispatched to {$nttnProvider} NOC ({$nttnEmail}) for Circuit: {$internalCircuitId}.",
                     ]);
                 }
             } catch (\Throwable $e) {
@@ -166,7 +167,11 @@ class TicketController extends Controller
 
         $flashMessage = "Trouble Ticket {$ticketNo} created successfully!";
         if ($emailDispatched) {
-            $flashMessage .= " Automated escalation email sent to {$nttnProvider} NOC ({$nttnEmail}) with NTTN Link ID {$nttnLinkId}.";
+            if (Auth::user()->isReseller()) {
+                $flashMessage .= " Automated escalation email sent to carrier NOC for Circuit {$internalCircuitId}.";
+            } else {
+                $flashMessage .= " Automated escalation email sent to {$nttnProvider} NOC ({$nttnEmail}) with NTTN Link ID {$nttnLinkId}.";
+            }
         }
 
         return redirect()->route('tickets.show', $ticket)
